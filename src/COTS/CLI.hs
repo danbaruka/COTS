@@ -40,7 +40,7 @@ module COTS.CLI
 where
 
 import COTS.Config (loadConfig)
--- import COTS.Database (Database (..), closeDatabase, exportUTXOs, importUTXOs, initDatabase, inspectDatabase, loadSnapshot, resetDatabase, snapshotDatabase)
+import COTS.Database (Database (..), closeDatabase, exportUTXOs, importUTXOs, initDatabase, inspectDatabase, loadSnapshot, resetDatabase, snapshotDatabase)
 import COTS.Export.CardanoCLI (exportTransactionToFile)
 import COTS.Export.Koios (exportTransactionToKoiosFile)
 import COTS.Simulation.Core (SimulationContext (..), simulateTransaction)
@@ -338,13 +338,13 @@ commandParser =
               ( progDesc "Protocol parameter commands"
               )
           )
-        -- <> command
-        --   "database"
-        --   ( info
-        --       (DatabaseCmd <$> databaseParser)
-        --       ( progDesc "Database management commands"
-        --       )
-        --   )
+        <> command
+          "database"
+          ( info
+              (DatabaseCmd <$> databaseParser)
+              ( progDesc "Database management commands"
+              )
+          )
         <> command
           "address"
           ( info
@@ -1143,6 +1143,17 @@ runProtocolCommand :: ProtocolCommand -> IO ()
 runProtocolCommand cmd = case cmd of
   Update opts -> runUpdate opts
 
+-- | Run database commands
+runDatabaseCommand :: DatabaseCommand -> IO ()
+runDatabaseCommand cmd = case cmd of
+  Init opts -> runInit opts
+  Reset opts -> runReset opts
+  Snapshot opts -> runSnapshot opts
+  LoadSnapshot opts -> runLoadSnapshot opts
+  ImportUTXO opts -> runImportUTXO opts
+  ExportUTXO opts -> runExportUTXO opts
+  Inspect opts -> runInspect opts
+
 -- | Run address commands
 runAddressCommand :: AddressCommand -> IO ()
 runAddressCommand cmd = case cmd of
@@ -1171,7 +1182,7 @@ runCLI = do
     TransactionCmd txCmd -> runTransactionCommand txCmd
     UTXOCmd utxoCmd -> runUTXOCommand utxoCmd
     ProtocolCmd protoCmd -> runProtocolCommand protoCmd
-    -- DatabaseCmd dbCmd -> runDatabaseCommand dbCmd
+    DatabaseCmd dbCmd -> runDatabaseCommand dbCmd
     AddressCmd addrCmd -> runAddressCommand addrCmd
     StakeAddressCmd stakeAddrCmd -> runStakeAddressCommand stakeAddrCmd
     MintCmd mintCmd -> runMintCommand mintCmd
@@ -1184,17 +1195,6 @@ runCLI = do
             <> progDesc "Cardano Offline Transaction Simulator"
             <> header "cots - simulate Cardano transactions offline (cardano-cli compatible)"
         )
-
--- | Run database commands
--- runDatabaseCommand :: DatabaseCommand -> IO ()
--- runDatabaseCommand cmd = case cmd of
---   Init opts -> runInit opts
---   Reset opts -> runReset opts
---   Snapshot opts -> runSnapshot opts
---   LoadSnapshot opts -> runLoadSnapshot opts
---   ImportUTXO opts -> runImportUTXO opts
---   ExportUTXO opts -> runExportUTXO opts
---   Inspect opts -> runInspect opts
 
 -- | Run build command
 runBuild :: BuildOptions -> IO ()
@@ -1392,96 +1392,94 @@ runUpdate opts = do
   putStrLn "✅ Protocol parameters updated successfully!"
 
 -- | Run init command
--- runInit :: InitOptions -> IO ()
--- runInit opts = do
---   putStrLn "🗄️  Initializing SQLite database..."
---   putStrLn $ "📁 Database file: " ++ initDbFile opts
+runInit :: InitOptions -> IO ()
+runInit opts = do
+  putStrLn "🗄️  Initializing SQLite database..."
+  putStrLn $ "📁 Database file: " ++ initDbFile opts
 
---   db <- initDatabase (initDbFile opts)
---   closeDatabase db
+  db <- initDatabase (initDbFile opts)
+  closeDatabase db
 
---   putStrLn "✅ Database initialized successfully!"
+  putStrLn "✅ Database initialized successfully!"
 
 -- | Run reset command
--- runReset :: ResetOptions -> IO ()
--- runReset opts = do
---   putStrLn "🔄 Resetting SQLite database..."
---   putStrLn $ "📁 Database file: " ++ resetDbFile opts
+runReset :: ResetOptions -> IO ()
+runReset opts = do
+  putStrLn "🔄 Resetting SQLite database..."
+  putStrLn $ "📁 Database file: " ++ resetDbFile opts
 
---   db <- initDatabase (resetDbFile opts)
---   resetDatabase db
---   closeDatabase db
+  resetDatabase (resetDbFile opts)
 
---   putStrLn "✅ Database reset successfully!"
+  putStrLn "✅ Database reset successfully!"
 
 -- | Run snapshot command
--- runSnapshot :: SnapshotOptions -> IO ()
--- runSnapshot opts = do
---   putStrLn "📸 Creating database snapshot..."
---   putStrLn $ "📁 Database file: " ++ snapshotDbFile opts
---   putStrLn $ "💾 Snapshot file: " ++ snapshotOutFile opts
+runSnapshot :: SnapshotOptions -> IO ()
+runSnapshot opts = do
+  putStrLn "📸 Creating database snapshot..."
+  putStrLn $ "📁 Database file: " ++ snapshotDbFile opts
+  putStrLn $ "💾 Snapshot file: " ++ snapshotOutFile opts
 
---   db <- initDatabase (snapshotDbFile opts)
---   snapshotDatabase db (snapshotOutFile opts)
---   closeDatabase db
+  db <- initDatabase (snapshotDbFile opts)
+  snapshotDatabase db (snapshotOutFile opts)
+  closeDatabase db
 
---   putStrLn "✅ Snapshot created successfully!"
+  putStrLn "✅ Snapshot created successfully!"
 
 -- | Run load snapshot command
--- runLoadSnapshot :: LoadSnapshotOptions -> IO ()
--- runLoadSnapshot opts = do
---   putStrLn "📥 Loading database from snapshot..."
---   putStrLn $ "📁 Snapshot file: " ++ loadSnapshotFile opts
---   putStrLn $ "💾 Database file: " ++ loadDbFile opts
+runLoadSnapshot :: LoadSnapshotOptions -> IO ()
+runLoadSnapshot opts = do
+  putStrLn "📥 Loading database from snapshot..."
+  putStrLn $ "📁 Snapshot file: " ++ loadSnapshotFile opts
+  putStrLn $ "💾 Database file: " ++ loadDbFile opts
 
---   db <- loadSnapshot (loadSnapshotFile opts) (loadDbFile opts)
---   closeDatabase db
+  db <- loadSnapshot (loadSnapshotFile opts) (loadDbFile opts)
+  closeDatabase db
 
---   putStrLn "✅ Snapshot loaded successfully!"
+  putStrLn "✅ Snapshot loaded successfully!"
 
 -- | Run import UTXO command
--- runImportUTXO :: ImportUTXOptions -> IO ()
--- runImportUTXO opts = do
---   putStrLn "📥 Importing UTXOs from JSON file..."
---   putStrLn $ "📁 Database file: " ++ importDbFile opts
---   putStrLn $ "📄 UTXO file: " ++ importUtxoFile opts
+runImportUTXO :: ImportUTXOptions -> IO ()
+runImportUTXO opts = do
+  putStrLn "📥 Importing UTXOs from JSON file..."
+  putStrLn $ "📁 Database file: " ++ importDbFile opts
+  putStrLn $ "📄 UTXO file: " ++ importUtxoFile opts
 
---   -- Load UTXOs from JSON file
---   mUtxos <- Aeson.decodeFileStrict' (importUtxoFile opts) :: IO (Maybe [UTXO])
---   case mUtxos of
---     Nothing -> putStrLn "❌ Error: Could not parse UTXO file"
---     Just utxos -> do
---       db <- initDatabase (importDbFile opts)
---       importUTXOs db utxos
---       closeDatabase db
---       putStrLn $ "✅ Imported " ++ show (length utxos) ++ " UTXOs successfully!"
+  -- Load UTXOs from JSON file
+  mUtxos <- Aeson.decodeFileStrict' (importUtxoFile opts) :: IO (Maybe [UTXO])
+  case mUtxos of
+    Nothing -> putStrLn "❌ Error: Could not parse UTXO file"
+    Just utxos -> do
+      db <- initDatabase (importDbFile opts)
+      importUTXOs db utxos
+      closeDatabase db
+      putStrLn $ "✅ Imported " ++ show (length utxos) ++ " UTXOs successfully!"
 
 -- | Run export UTXO command
--- runExportUTXO :: ExportUTXOptions -> IO ()
--- runExportUTXO opts = do
---   putStrLn "📤 Exporting UTXOs to JSON file..."
---   putStrLn $ "📁 Database file: " ++ exportDbFile opts
---   putStrLn $ "💾 Output file: " ++ exportUtxoFile opts
+runExportUTXO :: ExportUTXOptions -> IO ()
+runExportUTXO opts = do
+  putStrLn "📤 Exporting UTXOs to JSON file..."
+  putStrLn $ "📁 Database file: " ++ exportDbFile opts
+  putStrLn $ "💾 Output file: " ++ exportUtxoFile opts
 
---   db <- initDatabase (exportDbFile opts)
---   utxos <- exportUTXOs db
---   closeDatabase db
+  db <- initDatabase (exportDbFile opts)
+  utxos <- exportUTXOs db
+  closeDatabase db
 
---   -- Write to JSON file
---   LBS.writeFile (exportUtxoFile opts) (encode utxos)
---   putStrLn $ "✅ Exported " ++ show (length utxos) ++ " UTXOs successfully!"
+  -- Write to JSON file
+  LBS.writeFile (exportUtxoFile opts) (encode utxos)
+  putStrLn $ "✅ Exported " ++ show (length utxos) ++ " UTXOs successfully!"
 
 -- | Run inspect command
--- runInspect :: InspectOptions -> IO ()
--- runInspect opts = do
---   putStrLn "🔍 Inspecting database..."
---   putStrLn $ "📁 Database file: " ++ inspectDbFile opts
+runInspect :: InspectOptions -> IO ()
+runInspect opts = do
+  putStrLn "🔍 Inspecting database..."
+  putStrLn $ "📁 Database file: " ++ inspectDbFile opts
 
---   db <- initDatabase (inspectDbFile opts)
---   stats <- inspectDatabase db
---   closeDatabase db
+  db <- initDatabase (inspectDbFile opts)
+  stats <- inspectDatabase db
+  closeDatabase db
 
---   putStrLn stats
+  putStrLn stats
 
 -- | Run address key generation
 runAddressKeyGen :: AddressKeyGenOptions -> IO ()
