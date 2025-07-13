@@ -1,0 +1,50 @@
+# Haskell
+dist/
+dist-*/
+cabal-dev/
+*.o
+*.hi
+*.hie
+*.chi
+*.chs.h
+*.dyn_o
+*.dyn_hi
+.hpc
+.hsenv
+.cabal-sandbox/
+cabal.sandbox.config
+*.prof
+*.aux
+*.hp
+*.eventlog
+
+# Stack
+.stack-work/
+stack.yaml.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.exe
+*.bin
+cots-exe
+
+# Test artifacts
+test-results/
+coverage/
+
+# Documentation
+docs/_build/
+
+# Temporary files
+*.tmp
+*.temp 

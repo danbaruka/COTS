@@ -1,0 +1,23 @@
+{
+  "network": "testnet",
+  "protocolParameters": {
+    "minFeeA": 44,
+    "minFeeB": 155381,
+    "maxTxSize": 16384,
+    "maxValSize": 5000,
+    "minUTxOValue": 1000000,
+    "priceMemory": 0.0577,
+    "priceSteps": 0.0000721,
+    "maxTxExUnits": {
+      "memory": 14000000,
+      "steps": 10000000000
+    },
+    "maxBlockExUnits": {
+      "memory": 62000000,
+      "steps": 20000000000
+    },
+    "maxValueSize": 5000,
+    "collateralPercentage": 150,
+    "maxCollateralInputs": 3
+  }
+}

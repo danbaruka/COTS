@@ -1,0 +1,60 @@
+{
+    "network": "Testnet",
+    "protocolParameters": {
+        "minFeeA": 44,
+        "minFeeB": 155381,
+        "maxTxSize": 16384,
+        "maxValSize": 5000,
+        "keyDeposit": 2000000,
+        "poolDeposit": 500000000,
+        "coinsPerUtxoSize": 4310,
+        "maxCollateralInputs": 3,
+        "collateralPercentage": 150,
+        "maxExecutionUnitsPerTransaction": {
+            "memory": 14000000,
+            "steps": 10000000000
+        }
+    },
+    "wallets": [
+        {
+            "name": "alice",
+            "address": {
+                "unAddress": "addr_test1vq0nckg3mj5z9q345x7p0fnf5w8u92j9hsgnhq0u0n3uq8gq3p5zq"
+            },
+            "utxos": [
+                {
+                    "txHash": {
+                        "unTransactionId": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                    },
+                    "txIx": {
+                        "unTxIndex": 0
+                    },
+                    "amount": {
+                        "lovelace": 1000000000,
+                        "assets": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "bob",
+            "address": {
+                "unAddress": "addr_test1vq0nckg3mj5z9q345x7p0fnf5w8u92j9hsgnhq0u0n3uq8gq3p5zq"
+            },
+            "utxos": [
+                {
+                    "txHash": {
+                        "unTransactionId": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+                    },
+                    "txIx": {
+                        "unTxIndex": 0
+                    },
+                    "amount": {
+                        "lovelace": 500000000,
+                        "assets": []
+                    }
+                }
+            ]
+        }
+    ]
+}

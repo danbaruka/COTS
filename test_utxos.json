@@ -1,0 +1,23 @@
+[
+  {
+    "txHash": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "txIx": 0,
+    "amount": {
+      "lovelace": 1000000000,
+      "assets": [
+        {
+          "assetId": "policy123.token456",
+          "quantity": 100
+        }
+      ]
+    }
+  },
+  {
+    "txHash": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+    "txIx": 1,
+    "amount": {
+      "lovelace": 500000000,
+      "assets": []
+    }
+  }
+]

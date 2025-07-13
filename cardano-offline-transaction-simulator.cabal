@@ -1,0 +1,129 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.37.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           cardano-offline-transaction-simulator
+version:        0.1.0.0
+description:    Cardano Offline Transaction Simulator - A CLI tool for simulating Cardano transactions offline
+category:       Blockchain, Cardano, Simulation
+homepage:       https://github.com/your-username/cardano-offline-transaction-simulator
+bug-reports:    https://github.com/your-username/cardano-offline-transaction-simulator/issues
+author:         Your Name
+maintainer:     your.email@example.com
+copyright:      2024 Your Name
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/your-username/cardano-offline-transaction-simulator
+
+library
+  exposed-modules:
+      COTS
+      COTS.CLI
+      COTS.Simulation
+      COTS.Simulation.Core
+      COTS.Simulation.UTXO
+      COTS.Simulation.Fees
+      COTS.Simulation.Plutus
+      COTS.Protocol
+      COTS.Protocol.Parameters
+      COTS.Protocol.Consensus
+      COTS.Export
+      COTS.Export.CardanoCLI
+      COTS.Export.Koios
+      COTS.Config
+      COTS.Config.Parser
+      COTS.Config.Validation
+      COTS.Types
+  other-modules:
+      COTS.Simulation.Minting
+      COTS.Version
+      COTS.Wallet.HD
+      Paths_cardano_offline_transaction_simulator
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wunused-packages
+  build-depends:
+      aeson >=2.0
+    , base >=4.14 && <5
+    , base16-bytestring >=1.0
+    , bytestring >=0.11
+    , containers >=0.6
+    , cryptonite >=0.28
+    , direct-sqlite >=2.3
+    , directory >=1.3
+    , filepath >=1.4
+    , mtl >=2.3
+    , optparse-applicative >=0.17
+    , random >=1.2
+    , sqlite-simple >=0.4
+    , text >=1.2
+    , time >=1.9
+    , yaml >=0.11
+  default-language: Haskell2010
+
+executable cotscli
+  main-is: Main.hs
+  other-modules:
+      Paths_cardano_offline_transaction_simulator
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wunused-packages -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson >=2.0
+    , base >=4.14 && <5
+    , base16-bytestring >=1.0
+    , bytestring >=0.11
+    , cardano-offline-transaction-simulator
+    , containers >=0.6
+    , cryptonite >=0.28
+    , direct-sqlite >=2.3
+    , directory >=1.3
+    , filepath >=1.4
+    , mtl >=2.3
+    , optparse-applicative >=0.17
+    , random >=1.2
+    , sqlite-simple >=0.4
+    , text >=1.2
+    , time >=1.9
+    , yaml >=0.11
+  default-language: Haskell2010
+
+test-suite cardano-offline-transaction-simulator-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      DatabaseSpec
+      Paths_cardano_offline_transaction_simulator
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wunused-packages -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      QuickCheck >=2.14
+    , aeson
+    , base >=4.14 && <5
+    , base16-bytestring >=1.0
+    , bytestring >=0.11
+    , cardano-offline-transaction-simulator
+    , containers >=0.6
+    , cryptonite >=0.28
+    , direct-sqlite >=2.3
+    , directory >=1.3
+    , filepath >=1.4
+    , hspec >=2.10
+    , mtl >=2.3
+    , optparse-applicative >=0.17
+    , random >=1.2
+    , sqlite-simple >=0.4
+    , text >=1.2
+    , time >=1.9
+    , yaml
+  default-language: Haskell2010
