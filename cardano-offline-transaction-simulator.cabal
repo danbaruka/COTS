@@ -28,6 +28,7 @@ library
   exposed-modules:
       COTS
       COTS.CLI
+      COTS.Database
       COTS.Simulation
       COTS.Simulation.Core
       COTS.Simulation.UTXO
@@ -45,7 +46,6 @@ library
       COTS.Types
       COTS.Version
   other-modules:
-      COTS.Database
       COTS.Simulation.Minting
       COTS.Wallet.HD
       Paths_cardano_offline_transaction_simulator

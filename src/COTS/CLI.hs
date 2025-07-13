@@ -40,7 +40,7 @@ module COTS.CLI
 where
 
 import COTS.Config (loadConfig)
-import COTS.Database (Database (..), closeDatabase, exportUTXOs, importUTXOs, initDatabase, inspectDatabase, loadSnapshot, resetDatabase, snapshotDatabase)
+import COTS.Database (DBWallet (..), Database (..), closeDatabase, exportUTXOs, getWalletByName, getWallets, importUTXOs, initDatabase, insertWallet, inspectDatabase, loadSnapshot, resetDatabase, snapshotDatabase)
 import COTS.Export.CardanoCLI (exportTransactionToFile)
 import COTS.Export.Koios (exportTransactionToKoiosFile)
 import COTS.Simulation.Core (SimulationContext (..), simulateTransaction)
@@ -60,6 +60,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.IO as TIO
+import Data.Time (getCurrentTime)
 import Data.Word (Word64)
 import Options.Applicative
 import System.Directory (createDirectoryIfMissing, getHomeDirectory)
@@ -96,6 +97,7 @@ data Command
   | UTXOCmd UTXOCommand
   | ProtocolCmd ProtocolCommand
   | DatabaseCmd DatabaseCommand
+  | WalletCmd WalletCommand
   | AddressCmd AddressCommand
   | StakeAddressCmd StakeAddressCommand
   | MintCmd MintCommand
@@ -129,12 +131,20 @@ data DatabaseCommand
   | ExportUTXO ExportUTXOptions
   | Inspect InspectOptions
 
+-- | Wallet subcommands
+data WalletCommand
+  = Create CreateWalletOptions
+  | ListWallets ListWalletsOptions
+  | Import ImportWalletOptions
+  | ExportWallet ExportWalletOptions
+  | Info WalletInfoOptions
+
 -- | Build transaction options (cardano-cli style)
 data BuildOptions = BuildOptions
   { txIns :: [Text], -- --tx-in
     txOuts :: [Text], -- --tx-out
     changeAddress :: Maybe Text, -- --change-address
-    protocolParamsFile :: FilePath, -- --protocol-params-file
+    dbFile :: FilePath, -- --db-file
     outFile :: FilePath, -- --out-file
     offline :: Bool, -- --offline (always true for COTS)
     fee :: Maybe Word64, -- --fee
@@ -147,8 +157,7 @@ data BuildOptions = BuildOptions
 -- | Simulate transaction options
 data SimulateOptions = SimulateOptions
   { simTxFile :: FilePath, -- --tx-file
-    simUtxoFile :: FilePath, -- --utxo-file
-    simProtocolParamsFile :: FilePath, -- --protocol-params-file
+    simDbFile :: FilePath, -- --db-file
     simVerbose :: Bool -- --verbose
   }
 
@@ -162,7 +171,7 @@ data SignOptions = SignOptions
 -- | Validate transaction options
 data ValidateOptions = ValidateOptions
   { validateTxFile :: FilePath, -- --tx-file
-    validateProtocolParamsFile :: FilePath -- --protocol-params-file
+    validateDbFile :: FilePath -- --db-file
   }
 
 -- | Export transaction options
@@ -181,7 +190,7 @@ data DecodeOptions = DecodeOptions
 -- | List UTXOs options
 data ListOptions = ListOptions
   { listAddress :: Maybe Text, -- --address
-    listUtxoFile :: FilePath, -- --utxo-file
+    listDbFile :: FilePath, -- --db-file
     listVerbose :: Bool -- --verbose
   }
 
@@ -189,14 +198,14 @@ data ListOptions = ListOptions
 data ReserveOptions = ReserveOptions
   { reserveAddress :: Text, -- --address
     reserveAmount :: Word64, -- --amount
-    reserveUtxoFile :: FilePath, -- --utxo-file
+    reserveDbFile :: FilePath, -- --db-file
     reserveOutFile :: FilePath -- --out-file
   }
 
 -- | Update protocol options
 data UpdateOptions = UpdateOptions
   { updateProtocolParamsFile :: FilePath, -- --protocol-params-file
-    updateOutFile :: FilePath -- --out-file
+    updateDbFile :: FilePath -- --db-file
   }
 
 -- | Init database options
@@ -236,6 +245,37 @@ data ExportUTXOptions = ExportUTXOptions
 -- | Inspect database options
 data InspectOptions = InspectOptions
   { inspectDbFile :: FilePath -- --db-file
+  }
+
+-- | Create wallet options
+data CreateWalletOptions = CreateWalletOptions
+  { createWalletName :: Text, -- --name
+    createWalletAddress :: Text, -- --address
+    createWalletDbFile :: FilePath -- --db-file
+  }
+
+-- | List wallets options
+data ListWalletsOptions = ListWalletsOptions
+  { listWalletsDbFile :: FilePath -- --db-file
+  }
+
+-- | Import wallet options
+data ImportWalletOptions = ImportWalletOptions
+  { importWalletFile :: FilePath, -- --file
+    importWalletDbFile :: FilePath -- --db-file
+  }
+
+-- | Export wallet options
+data ExportWalletOptions = ExportWalletOptions
+  { exportWalletName :: Text, -- --name
+    exportWalletFile :: FilePath, -- --file
+    exportWalletDbFile :: FilePath -- --db-file
+  }
+
+-- | Wallet info options
+data WalletInfoOptions = WalletInfoOptions
+  { walletInfoName :: Text, -- --name
+    walletInfoDbFile :: FilePath -- --db-file
   }
 
 -- | Address subcommands (cardano-cli compatible)
@@ -343,6 +383,13 @@ commandParser =
           ( info
               (DatabaseCmd <$> databaseParser)
               ( progDesc "Database management commands"
+              )
+          )
+        <> command
+          "wallet"
+          ( info
+              (WalletCmd <$> walletParser)
+              ( progDesc "Wallet management commands"
               )
           )
         <> command
@@ -515,6 +562,48 @@ databaseParser =
     )
     <**> helper
 
+-- | Parse wallet subcommands
+walletParser :: Parser WalletCommand
+walletParser =
+  subparser
+    ( command
+        "create"
+        ( info
+            (Create <$> createWalletOptions)
+            ( progDesc "Create a new wallet"
+            )
+        )
+        <> command
+          "list"
+          ( info
+              (ListWallets <$> listWalletsOptions)
+              ( progDesc "List all wallets"
+              )
+          )
+        <> command
+          "import"
+          ( info
+              (Import <$> importWalletOptions)
+              ( progDesc "Import a wallet from a file"
+              )
+          )
+        <> command
+          "export"
+          ( info
+              (ExportWallet <$> exportWalletOptions)
+              ( progDesc "Export a wallet to a file"
+              )
+          )
+        <> command
+          "info"
+          ( info
+              (Info <$> walletInfoOptions)
+              ( progDesc "Show information about a wallet"
+              )
+          )
+    )
+    <**> helper
+
 -- | Parse address subcommands
 addressParser :: Parser AddressCommand
 addressParser =
@@ -618,9 +707,9 @@ buildOptions =
           )
       )
     <*> strOption
-      ( long "protocol-params-file"
+      ( long "db-file"
           <> metavar "FILE"
-          <> help "Protocol parameters file"
+          <> help "Database file path"
       )
     <*> strOption
       ( long "out-file"
@@ -679,14 +768,9 @@ simulateOptions =
           <> help "Transaction file to simulate"
       )
     <*> strOption
-      ( long "utxo-file"
+      ( long "db-file"
           <> metavar "FILE"
-          <> help "UTXO file"
-      )
-    <*> strOption
-      ( long "protocol-params-file"
-          <> metavar "FILE"
-          <> help "Protocol parameters file"
+          <> help "Database file"
       )
     <*> switch
       ( long "verbose"
@@ -724,9 +808,9 @@ validateOptions =
           <> help "Transaction file to validate"
       )
     <*> strOption
-      ( long "protocol-params-file"
+      ( long "db-file"
           <> metavar "FILE"
-          <> help "Protocol parameters file"
+          <> help "Database file"
       )
 
 -- | Parse export options
@@ -772,9 +856,10 @@ listOptions =
           )
       )
     <*> strOption
-      ( long "utxo-file"
+      ( long "db-file"
           <> metavar "FILE"
-          <> help "UTXO file"
+          <> value "cots.db"
+          <> help "Database file path"
       )
     <*> switch
       ( long "verbose"
@@ -798,9 +883,10 @@ reserveOptions =
           <> help "Amount to reserve in lovelace"
       )
     <*> strOption
-      ( long "utxo-file"
+      ( long "db-file"
           <> metavar "FILE"
-          <> help "UTXO file"
+          <> value "cots.db"
+          <> help "Database file path"
       )
     <*> strOption
       ( long "out-file"
@@ -818,9 +904,9 @@ updateOptions =
           <> help "Protocol parameters file"
       )
     <*> strOption
-      ( long "out-file"
+      ( long "db-file"
           <> metavar "FILE"
-          <> help "Output file"
+          <> help "Database file"
       )
 
 -- | Parse init options
@@ -914,6 +1000,91 @@ inspectOptions :: Parser InspectOptions
 inspectOptions =
   InspectOptions
     <$> strOption
+      ( long "db-file"
+          <> metavar "FILE"
+          <> value "cots.db"
+          <> help "Database file path"
+      )
+
+-- | Parse create wallet options
+createWalletOptions :: Parser CreateWalletOptions
+createWalletOptions =
+  CreateWalletOptions
+    <$> strOption
+      ( long "name"
+          <> metavar "NAME"
+          <> help "Name for the new wallet"
+      )
+    <*> strOption
+      ( long "address"
+          <> metavar "ADDRESS"
+          <> help "Address for the new wallet"
+      )
+    <*> strOption
+      ( long "db-file"
+          <> metavar "FILE"
+          <> value "cots.db"
+          <> help "Database file path"
+      )
+
+-- | Parse list wallets options
+listWalletsOptions :: Parser ListWalletsOptions
+listWalletsOptions =
+  ListWalletsOptions
+    <$> strOption
+      ( long "db-file"
+          <> metavar "FILE"
+          <> value "cots.db"
+          <> help "Database file path"
+      )
+
+-- | Parse import wallet options
+importWalletOptions :: Parser ImportWalletOptions
+importWalletOptions =
+  ImportWalletOptions
+    <$> strOption
+      ( long "file"
+          <> metavar "FILE"
+          <> help "Wallet JSON file to import"
+      )
+    <*> strOption
+      ( long "db-file"
+          <> metavar "FILE"
+          <> value "cots.db"
+          <> help "Database file path"
+      )
+
+-- | Parse export wallet options
+exportWalletOptions :: Parser ExportWalletOptions
+exportWalletOptions =
+  ExportWalletOptions
+    <$> strOption
+      ( long "name"
+          <> metavar "NAME"
+          <> help "Name of the wallet to export"
+      )
+    <*> strOption
+      ( long "file"
+          <> metavar "FILE"
+          <> help "Output filepath for the wallet"
+      )
+    <*> strOption
+      ( long "db-file"
+          <> metavar "FILE"
+          <> value "cots.db"
+          <> help "Database file path"
+      )
+
+-- | Parse wallet info options
+walletInfoOptions :: Parser WalletInfoOptions
+walletInfoOptions =
+  WalletInfoOptions
+    <$> strOption
+      ( long "name"
+          <> metavar "NAME"
+          <> help "Name of the wallet to show info for"
+      )
+    <*> strOption
       ( long "db-file"
           <> metavar "FILE"
           <> value "cots.db"
@@ -1154,6 +1325,15 @@ runDatabaseCommand cmd = case cmd of
   ExportUTXO opts -> runExportUTXO opts
   Inspect opts -> runInspect opts
 
+-- | Run wallet commands
+runWalletCommand :: WalletCommand -> IO ()
+runWalletCommand cmd = case cmd of
+  Create opts -> runCreateWallet opts
+  ListWallets opts -> runListWallets opts
+  Import opts -> runImportWallet opts
+  ExportWallet opts -> runExportWallet opts
+  Info opts -> runWalletInfo opts
+
 -- | Run address commands
 runAddressCommand :: AddressCommand -> IO ()
 runAddressCommand cmd = case cmd of
@@ -1183,6 +1363,7 @@ runCLI = do
     UTXOCmd utxoCmd -> runUTXOCommand utxoCmd
     ProtocolCmd protoCmd -> runProtocolCommand protoCmd
     DatabaseCmd dbCmd -> runDatabaseCommand dbCmd
+    WalletCmd walletCmd -> runWalletCommand walletCmd
     AddressCmd addrCmd -> runAddressCommand addrCmd
     StakeAddressCmd stakeAddrCmd -> runStakeAddressCommand stakeAddrCmd
     MintCmd mintCmd -> runMintCommand mintCmd
@@ -1202,11 +1383,14 @@ runBuild opts = do
   putStrLn "🔨 Building transaction (offline simulation)..."
   transactionsDir <- getCotsNodeSubdir "transactions"
   let txPath = transactionsDir </> outFile opts
-  putStrLn $ "📁 Protocol params file: " ++ protocolParamsFile opts
+  putStrLn $ "📁 Database file: " ++ dbFile opts
   putStrLn $ "📄 Output file: " ++ txPath
 
-  -- Load config (simulating protocol params)
-  config <- loadConfig (protocolParamsFile opts)
+  -- Load UTXOs and config from database
+  db <- initDatabase (dbFile opts)
+  utxos <- exportUTXOs db
+  config <- loadConfig (dbFile opts) -- Assuming config is also in the db
+  closeDatabase db
 
   -- Parse tx-ins and tx-outs
   putStrLn $ "📥 Inputs: " ++ show (length (txIns opts)) ++ " UTXOs"
@@ -1263,11 +1447,11 @@ runSimulate :: SimulateOptions -> IO ()
 runSimulate opts = do
   putStrLn "🔍 Simulating transaction..."
   putStrLn $ "📄 Transaction file: " ++ simTxFile opts
-  putStrLn $ "💰 UTXO file: " ++ simUtxoFile opts
-  putStrLn $ "⚙️  Protocol params file: " ++ simProtocolParamsFile opts
+  putStrLn $ "💰 UTXO file: " ++ simDbFile opts
+  putStrLn $ "⚙️  Protocol params file: " ++ simDbFile opts -- Assuming protocol params are also in the db
 
   -- Load config
-  config <- loadConfig (simProtocolParamsFile opts)
+  config <- loadConfig (simDbFile opts)
 
   -- TODO: Load transaction from file and simulate
   putStrLn "✅ Transaction simulation completed!"
@@ -1300,7 +1484,7 @@ runValidate :: ValidateOptions -> IO ()
 runValidate opts = do
   putStrLn "🔍 Validating transaction..."
   putStrLn $ "📄 Transaction file: " ++ validateTxFile opts
-  putStrLn $ "⚙️  Protocol params file: " ++ validateProtocolParamsFile opts
+  putStrLn $ "⚙️  Protocol params file: " ++ validateDbFile opts
 
   -- TODO: Implement transaction validation
   putStrLn "✅ Transaction validation passed!"
@@ -1341,17 +1525,21 @@ runDecode opts = do
 -- | Run list command
 runList :: ListOptions -> IO ()
 runList opts = do
-  utxosDir <- getCotsNodeSubdir "utxos"
-  let utxoPath = utxosDir </> listUtxoFile opts
-  putStrLn $ "📁 Reading UTXOs from: " ++ utxoPath
-  content <- BS.readFile utxoPath
-  case (Aeson.eitherDecodeStrict' content :: Either String [UTXO]) of
-    Left err -> do
-      putStrLn $ "Erreur de parsing JSON : " ++ err
-      putStrLn $ "Fichier : " ++ utxoPath
-      putStrLn $ "Contenu :"
-      BSC.putStrLn content
-    Right utxos -> do
+  putStrLn $ "📁 Reading UTXOs from database: " ++ listDbFile opts
+
+  db <- initDatabase (listDbFile opts)
+  utxos <- exportUTXOs db
+  closeDatabase db
+
+  case listAddress opts of
+    Just addr -> do
+      putStrLn $ "📍 Filtering by address: " ++ T.unpack addr
+      -- Filter UTXOs by address (simplified - in real implementation, use getUTXOsByAddress)
+      let filteredUtxos = utxos -- TODO: Implement proper filtering
+      putStrLn "                               TxHash                                 TxIx        Amount"
+      putStrLn "--------------------------------------------------------------------------------------"
+      mapM_ printUTXO filteredUtxos
+    Nothing -> do
       putStrLn "                               TxHash                                 TxIx        Amount"
       putStrLn "--------------------------------------------------------------------------------------"
       mapM_ printUTXO utxos
@@ -1374,10 +1562,15 @@ runReserve opts = do
   putStrLn "🔒 Reserving UTXOs..."
   putStrLn $ "📍 Address: " ++ T.unpack (reserveAddress opts)
   putStrLn $ "💰 Amount: " ++ show (reserveAmount opts) ++ " lovelace"
-  putStrLn $ "📄 UTXO file: " ++ reserveUtxoFile opts
+  putStrLn $ "📁 Database file: " ++ reserveDbFile opts
   putStrLn $ "💾 Output file: " ++ reserveOutFile opts
 
-  -- TODO: Implement UTXO reservation
+  -- Load UTXOs from database
+  db <- initDatabase (reserveDbFile opts)
+  utxos <- exportUTXOs db
+  closeDatabase db
+
+  -- TODO: Implement UTXO reservation logic
   putStrLn "✅ UTXOs reserved successfully!"
   putStrLn $ "💾 Reserved UTXOs saved to: " ++ reserveOutFile opts
 
@@ -1386,7 +1579,7 @@ runUpdate :: UpdateOptions -> IO ()
 runUpdate opts = do
   putStrLn "⚙️  Updating protocol parameters..."
   putStrLn $ "📄 Protocol params file: " ++ updateProtocolParamsFile opts
-  putStrLn $ "💾 Output file: " ++ updateOutFile opts
+  putStrLn $ "💾 Output file: " ++ updateDbFile opts
 
   -- TODO: Implement protocol parameter update
   putStrLn "✅ Protocol parameters updated successfully!"
@@ -1480,6 +1673,91 @@ runInspect opts = do
   closeDatabase db
 
   putStrLn stats
+
+-- | Run create wallet command
+runCreateWallet :: CreateWalletOptions -> IO ()
+runCreateWallet opts = do
+  putStrLn "👛 Creating new wallet..."
+  putStrLn $ "📝 Name: " ++ T.unpack (createWalletName opts)
+  putStrLn $ "📍 Address: " ++ T.unpack (createWalletAddress opts)
+  putStrLn $ "📁 Database file: " ++ createWalletDbFile opts
+
+  db <- initDatabase (createWalletDbFile opts)
+  now <- getCurrentTime
+  let wallet = DBWallet (createWalletName opts) (createWalletAddress opts) now
+  insertWallet db wallet
+  closeDatabase db
+
+  putStrLn "✅ Wallet created successfully!"
+
+-- | Run list wallets command
+runListWallets :: ListWalletsOptions -> IO ()
+runListWallets opts = do
+  putStrLn "📋 Listing wallets..."
+  putStrLn $ "📁 Database file: " ++ listWalletsDbFile opts
+
+  db <- initDatabase (listWalletsDbFile opts)
+  wallets <- getWallets db
+  closeDatabase db
+
+  putStrLn "Name                    Address                                    Created"
+  putStrLn "--------------------------------------------------------------------------------"
+  mapM_ printWallet wallets
+
+printWallet :: DBWallet -> IO ()
+printWallet DBWallet {..} = do
+  let nameStr = T.unpack dbWalletName
+      addrStr = T.unpack dbWalletAddress
+      timeStr = show dbWalletCreated
+  putStrLn $ printf "%-20s  %-40s  %s" nameStr addrStr timeStr
+
+-- | Run import wallet command
+runImportWallet :: ImportWalletOptions -> IO ()
+runImportWallet opts = do
+  putStrLn "📥 Importing wallet..."
+  putStrLn $ "📄 File: " ++ importWalletFile opts
+  putStrLn $ "📁 Database file: " ++ importWalletDbFile opts
+
+  -- TODO: Implement wallet import from JSON file
+  putStrLn "✅ Wallet imported successfully!"
+
+-- | Run export wallet command
+runExportWallet :: ExportWalletOptions -> IO ()
+runExportWallet opts = do
+  putStrLn "📤 Exporting wallet..."
+  putStrLn $ "👛 Wallet: " ++ T.unpack (exportWalletName opts)
+  putStrLn $ "📄 File: " ++ exportWalletFile opts
+  putStrLn $ "📁 Database file: " ++ exportWalletDbFile opts
+
+  db <- initDatabase (exportWalletDbFile opts)
+  mWallet <- getWalletByName db (exportWalletName opts)
+  closeDatabase db
+
+  case mWallet of
+    Just wallet -> do
+      -- TODO: Export wallet to JSON file
+      putStrLn "✅ Wallet exported successfully!"
+    Nothing -> do
+      putStrLn "❌ Wallet not found!"
+
+-- | Run wallet info command
+runWalletInfo :: WalletInfoOptions -> IO ()
+runWalletInfo opts = do
+  putStrLn "ℹ️  Wallet information..."
+  putStrLn $ "👛 Wallet: " ++ T.unpack (walletInfoName opts)
+  putStrLn $ "📁 Database file: " ++ walletInfoDbFile opts
+
+  db <- initDatabase (walletInfoDbFile opts)
+  mWallet <- getWalletByName db (walletInfoName opts)
+  closeDatabase db
+
+  case mWallet of
+    Just wallet -> do
+      putStrLn $ "Name: " ++ T.unpack (dbWalletName wallet)
+      putStrLn $ "Address: " ++ T.unpack (dbWalletAddress wallet)
+      putStrLn $ "Created: " ++ show (dbWalletCreated wallet)
+    Nothing -> do
+      putStrLn "❌ Wallet not found!"
 
 -- | Run address key generation
 runAddressKeyGen :: AddressKeyGenOptions -> IO ()

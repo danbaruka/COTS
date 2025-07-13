@@ -52,6 +52,7 @@ library:
   exposed-modules:
     - COTS
     - COTS.CLI
+    - COTS.Database
     - COTS.Simulation
     - COTS.Simulation.Core
     - COTS.Simulation.UTXO

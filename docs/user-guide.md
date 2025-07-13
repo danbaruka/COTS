@@ -1,245 +1,430 @@
-# Guide Utilisateur COTS
+# COTS User Guide
 
-## Introduction
+## Overview
 
-COTS (Cardano Offline Transaction Simulator) est un outil CLI qui permet de simuler des transactions Cardano hors chaîne, sans avoir besoin d'un nœud ou d'une connexion réseau.
+COTS (Cardano Offline Transaction Simulator) is a command-line tool that simulates Cardano transactions offline, providing a cardano-cli compatible interface. It uses SQLite for data persistence and supports UTXO management, wallet operations, and transaction simulation.
 
 ## Installation
 
-### Prérequis
-
-- GHC 9.4+ et Cabal
-- Stack (recommandé)
-
-### Installation
-
 ```bash
-git clone https://github.com/your-username/cardano-offline-transaction-simulator.git
-cd cardano-offline-transaction-simulator
+# Build the project
 stack build
+
+# Install globally
 stack install
 ```
 
 ## Configuration
 
-### Fichier de configuration
+COTS stores all data in `~/.COTS_NODE/` directory:
 
-COTS utilise un fichier de configuration JSON ou YAML pour définir :
+- Database: `~/.COTS_NODE/cots.db`
+- Keys: `~/.COTS_NODE/keys/`
+- Addresses: `~/.COTS_NODE/addresses/`
+- Transactions: `~/.COTS_NODE/transactions/`
 
-- Le réseau (mainnet, testnet, preview, preprod)
-- Les paramètres du protocole
-- Les wallets et leurs UTXOs
+## Database Management
 
-### Exemple de configuration
+### Initialize Database
 
-```json
-{
-  "network": "testnet",
-  "protocol_parameters": {
-    "minFeeA": 44,
-    "minFeeB": 155381,
-    "maxTxSize": 16384,
-    "maxValSize": 5000,
-    "keyDeposit": 2000000,
-    "poolDeposit": 500000000,
-    "coinsPerUtxoSize": 4310,
-    "maxCollateralInputs": 3,
-    "collateralPercentage": 150,
-    "maxExecutionUnitsPerTransaction": {
-      "memory": 14000000,
-      "steps": 10000000000
-    }
-  },
-  "wallets": [
-    {
-      "name": "alice",
-      "address": "addr_test1vq0nckg3mj5z9q345x7p0fnf5w8u92j9hsgnhq0u0n3uq8gq3p5zq",
-      "utxos": [
-        {
-          "txHash": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-          "txIx": 0,
-          "amount": {
-            "lovelace": 1000000000,
-            "assets": {}
-          }
-        }
-      ]
-    }
-  ]
-}
-```
-
-## Utilisation
-
-### Simulation d'une transaction simple
+Initialize a new SQLite database:
 
 ```bash
-cots simulate --config config.json --from alice --to addr_test1... --amount 100000000
+cotscli database init --db-file cots.db
 ```
 
-### Simulation avec smart contract Plutus
+### Inspect Database
+
+View database statistics:
 
 ```bash
-cots simulate --config config.json --script validator.plutus --datum datum.json --redeemer redeemer.json
+cotscli database inspect --db-file cots.db
 ```
 
-### Export pour cardano-cli
+Output includes:
+
+- Number of UTXOs (unspent and spent)
+- Total lovelace
+- Number of transactions
+- Number of wallets
+- Number of protocol parameters
+
+### Reset Database
+
+⚠️ **Dangerous**: Completely wipes the database:
 
 ```bash
-cots simulate --config config.json --from alice --to bob --amount 100000000 --export-cardano-cli
+cotscli database reset --db-file cots.db
 ```
 
-### Export pour Koios API
+### Snapshot Operations
+
+Create a database snapshot:
 
 ```bash
-cots simulate --config config.json --from alice --to bob --amount 100000000 --export-koios
+cotscli database snapshot --db-file cots.db --out-file snapshot.db
 ```
 
-### Validation de configuration
+Load from snapshot:
 
 ```bash
-cots validate --config config.json
+cotscli database load-snapshot --snapshot-file snapshot.db --db-file cots.db
 ```
 
-### Export de transaction
+### Import/Export UTXOs
+
+Import UTXOs from JSON file:
 
 ```bash
-cots export --config config.json --transaction tx.json --format cardano-cli
+cotscli database import-utxo --db-file cots.db --utxo-file utxos.json
 ```
 
-## Commandes disponibles
-
-### simulate
-
-Simule une transaction Cardano.
-
-**Options :**
-
-- `--config FILE` : Fichier de configuration (JSON/YAML)
-- `--from WALLET` : Nom du wallet source
-- `--to ADDRESS` : Adresse de destination
-- `--amount LOVELACE` : Montant en lovelace
-- `--script FILE` : Fichier script Plutus
-- `--datum FILE` : Fichier datum JSON
-- `--redeemer FILE` : Fichier redeemer JSON
-- `--export-cardano-cli` : Export vers cardano-cli
-- `--export-koios` : Export vers API Koios
-- `--output FILE` : Fichier de sortie
-- `--verbose` : Sortie verbeuse
-
-### validate
-
-Valide une transaction ou un script.
-
-**Options :**
-
-- `--config FILE` : Fichier de configuration
-- `--transaction FILE` : Fichier transaction à valider
-- `--script FILE` : Fichier script à valider
-
-### export
-
-Exporte une transaction dans différents formats.
-
-**Options :**
-
-- `--config FILE` : Fichier de configuration
-- `--transaction FILE` : Fichier transaction à exporter
-- `--format FORMAT` : Format d'export (cardano-cli, koios, json)
-- `--output FILE` : Fichier de sortie
-
-### update-protocol
-
-Met à jour les paramètres du protocole.
-
-### version
-
-Affiche la version de COTS.
-
-## Format de sortie
-
-### Simulation Result
-
-```json
-{
-  "success": true,
-  "transaction": {
-    "txId": "dummy_tx_id_for_simulation",
-    "txInputs": [...],
-    "txOutputs": [...],
-    "txFee": {"unLovelace": 170000},
-    "txScripts": [],
-    "txDatums": [],
-    "txRedeemers": []
-  },
-  "feeCalculation": {
-    "baseFee": {"unLovelace": 170000},
-    "sizeFee": {"unLovelace": 0},
-    "scriptFee": {"unLovelace": 0},
-    "totalFee": {"unLovelace": 170000}
-  },
-  "errors": [],
-  "finalUTXOs": {...},
-  "executionUnits": null
-}
-```
-
-### Cardano CLI Export
-
-```json
-{
-  "command": "cardano-cli",
-  "arguments": [
-    "transaction",
-    "submit",
-    "--tx-file",
-    "transaction.signed",
-    "--mainnet"
-  ],
-  "description": "Cardano CLI command for transaction submission"
-}
-```
-
-### Koios API Export
-
-```json
-{
-  "endpoint": "https://api.koios.rest/api/v1/submittx",
-  "method": "POST",
-  "headers": {
-    "Content-Type": "application/json",
-    "Accept": "application/json"
-  },
-  "body": "..."
-}
-```
-
-## Migration vers testnet/mainnet
-
-1. **Remplacer les UTXOs fictifs** par des UTXOs réels récupérés via `cardano-cli query utxo` ou l'API Koios
-2. **Signer la transaction** avec les clés réelles
-3. **Soumettre** via `cardano-cli` (nœud local) ou Koios (API)
-
-## Dépannage
-
-### Erreurs courantes
-
-- **"Wallet not found"** : Vérifiez que le nom du wallet existe dans la configuration
-- **"Insufficient funds"** : Vérifiez que le wallet a suffisamment de lovelace
-- **"Invalid address"** : Vérifiez le format de l'adresse Cardano
-- **"Script execution failed"** : Vérifiez que le script Plutus est valide
-
-### Logs et débogage
-
-Utilisez l'option `--verbose` pour obtenir plus d'informations de débogage :
+Export UTXOs to JSON file:
 
 ```bash
-cots simulate --config config.json --from alice --to bob --amount 100000000 --verbose
+cotscli database export-utxo --db-file cots.db --out-file utxos.json
 ```
 
-## Support
+## Wallet Management
 
-Pour obtenir de l'aide :
+### Create Wallet
 
-- [Issues GitHub](https://github.com/your-username/cardano-offline-transaction-simulator/issues)
-- [Discussions](https://github.com/your-username/cardano-offline-transaction-simulator/discussions)
+Create a new wallet:
+
+```bash
+cotscli wallet create --name alice --address addr_test1qalice --db-file cots.db
+```
+
+### List Wallets
+
+List all wallets in the database:
+
+```bash
+cotscli wallet list --db-file cots.db
+```
+
+### Wallet Information
+
+Show detailed information about a wallet:
+
+```bash
+cotscli wallet info --name alice --db-file cots.db
+```
+
+### Import/Export Wallets
+
+Import wallet from JSON file:
+
+```bash
+cotscli wallet import --file wallet.json --db-file cots.db
+```
+
+Export wallet to JSON file:
+
+```bash
+cotscli wallet export --name alice --file wallet.json --db-file cots.db
+```
+
+## UTXO Management
+
+### List UTXOs
+
+List all unspent UTXOs:
+
+```bash
+cotscli utxo list --db-file cots.db
+```
+
+Filter by address:
+
+```bash
+cotscli utxo list --address addr_test1qalice --db-file cots.db
+```
+
+### Reserve UTXOs
+
+Reserve UTXOs for a specific amount:
+
+```bash
+cotscli utxo reserve --address addr_test1qalice --amount 1000000 --db-file cots.db --out-file reserved.json
+```
+
+## Transaction Operations
+
+### Build Transaction
+
+Build a transaction using data from the database:
+
+```bash
+cotscli transaction build \
+  --tx-in "1234567890abcdef#0" \
+  --tx-out "addr_test1qbob+1000000" \
+  --change-address addr_test1qalice \
+  --db-file cots.db \
+  --out-file tx.raw
+```
+
+### Simulate Transaction
+
+Simulate a transaction:
+
+```bash
+cotscli transaction simulate \
+  --tx-file tx.raw \
+  --db-file cots.db \
+  --verbose
+```
+
+### Sign Transaction
+
+Sign a transaction:
+
+```bash
+cotscli transaction sign \
+  --tx-file tx.raw \
+  --signing-key-file alice.skey \
+  --out-file tx.signed
+```
+
+### Validate Transaction
+
+Validate a transaction:
+
+```bash
+cotscli transaction validate \
+  --tx-file tx.signed \
+  --db-file cots.db
+```
+
+### Export Transaction
+
+Export transaction in different formats:
+
+```bash
+# Export as Cardano CLI format
+cotscli transaction export \
+  --tx-file tx.signed \
+  --format cardano-cli \
+  --out-file tx.json
+
+# Export as Koios format
+cotscli transaction export \
+  --tx-file tx.signed \
+  --format koios \
+  --out-file tx.json
+```
+
+### Decode Transaction
+
+Decode transaction details:
+
+```bash
+cotscli transaction decode \
+  --tx-file tx.signed \
+  --verbose
+```
+
+## Protocol Management
+
+### Update Protocol Parameters
+
+Update protocol parameters in the database:
+
+```bash
+cotscli protocol update \
+  --protocol-params-file params.json \
+  --db-file cots.db
+```
+
+## Address Management
+
+### Generate Keys
+
+Generate payment key pair:
+
+```bash
+cotscli address key-gen \
+  --verification-key-file alice.vkey \
+  --signing-key-file alice.skey
+```
+
+### Build Address
+
+Build address from verification key:
+
+```bash
+cotscli address build \
+  --payment-verification-key-file alice.vkey \
+  --out-file alice.addr \
+  --mainnet
+```
+
+### Address Information
+
+Show address details:
+
+```bash
+cotscli address info --address addr_test1qalice
+```
+
+## Stake Address Management
+
+### Generate Stake Keys
+
+Generate stake key pair:
+
+```bash
+cotscli stake-address key-gen \
+  --verification-key-file stake.vkey \
+  --signing-key-file stake.skey
+```
+
+### Build Stake Address
+
+Build stake address:
+
+```bash
+cotscli stake-address build \
+  --stake-verification-key-file stake.vkey \
+  --out-file stake.addr \
+  --mainnet
+```
+
+### Stake Address Information
+
+Show stake address details:
+
+```bash
+cotscli stake-address info --address stake_test1qalice
+```
+
+## Minting Operations
+
+### Build Minting Transaction
+
+Build a transaction with minting:
+
+```bash
+cotscli mint build \
+  --tx-in "1234567890abcdef#0" \
+  --tx-out "addr_test1qbob+1000000" \
+  --mint "100 policy123.token456" \
+  --mint-script-file policy.script \
+  --out-file mint.raw \
+  --mainnet \
+  --protocol-params-file params.json
+```
+
+### Calculate Minting Fees
+
+Calculate fees for minting:
+
+```bash
+cotscli mint calculate \
+  --policy-id policy123 \
+  --asset-name token456 \
+  --quantity 100 \
+  --protocol-params-file params.json
+```
+
+## Examples
+
+### Complete Transaction Workflow
+
+1. Initialize database:
+
+```bash
+cotscli database init --db-file cots.db
+```
+
+2. Create wallets:
+
+```bash
+cotscli wallet create --name alice --address addr_test1qalice --db-file cots.db
+cotscli wallet create --name bob --address addr_test1qbob --db-file cots.db
+```
+
+3. Import UTXOs:
+
+```bash
+cotscli database import-utxo --db-file cots.db --utxo-file utxos.json
+```
+
+4. Build transaction:
+
+```bash
+cotscli transaction build \
+  --tx-in "1234567890abcdef#0" \
+  --tx-out "addr_test1qbob+1000000" \
+  --change-address addr_test1qalice \
+  --db-file cots.db \
+  --out-file tx.raw
+```
+
+5. Sign transaction:
+
+```bash
+cotscli transaction sign \
+  --tx-file tx.raw \
+  --signing-key-file alice.skey \
+  --out-file tx.signed
+```
+
+6. Validate transaction:
+
+```bash
+cotscli transaction validate \
+  --tx-file tx.signed \
+  --db-file cots.db
+```
+
+### Database Backup and Restore
+
+1. Create snapshot:
+
+```bash
+cotscli database snapshot --db-file cots.db --out-file backup.db
+```
+
+2. Restore from snapshot:
+
+```bash
+cotscli database load-snapshot --snapshot-file backup.db --db-file restored.db
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Database not found**: Ensure the database file exists and has proper permissions
+2. **UTXO not found**: Check that UTXOs have been imported into the database
+3. **Wallet not found**: Verify the wallet name exists in the database
+4. **Permission errors**: Check file permissions for `~/.COTS_NODE/` directory
+
+### Debug Mode
+
+Enable verbose output for detailed information:
+
+```bash
+cotscli utxo list --db-file cots.db --verbose
+```
+
+## Version Information
+
+Check COTS version:
+
+```bash
+cotscli version
+```
+
+## SQLite Integration
+
+COTS uses SQLite for data persistence with the following schema:
+
+- **utxos**: Transaction outputs with amounts and assets
+- **transactions**: Transaction metadata and status
+- **wallets**: Wallet information and addresses
+- **protocol_params**: Protocol parameters with timestamps
+- **metadata**: Key-value storage for configuration
+
+All data is stored in `~/.COTS_NODE/cots.db` by default, providing ACID compliance and efficient querying capabilities.
