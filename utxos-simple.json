@@ -1,0 +1,26 @@
+[
+    {
+        "txHash": {
+            "unTransactionId": "f5aefccca6f48b43a46b6b6035294bb08e3b0d6d4bcdbe214ef3c830d9d4c365"
+        },
+        "txIx": {
+            "unTxIndex": 0
+        },
+        "amount": {
+            "lovelace": 3000000,
+            "assets": []
+        }
+    },
+    {
+        "txHash": {
+            "unTransactionId": "9f125356ac9a9d8c6d76124b35b902b865df3e3f0a8fc2f2e5270b6e72d10bb3"
+        },
+        "txIx": {
+            "unTxIndex": 1
+        },
+        "amount": {
+            "lovelace": 1000000,
+            "assets": []
+        }
+    }
+]

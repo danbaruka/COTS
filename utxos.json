@@ -1,0 +1,54 @@
+[
+    {
+        "txHash": {
+            "unTransactionId": "f5aefccca6f48b43a46b6b6035294bb08e3b0d6d4bcdbe214ef3c830d9d4c365"
+        },
+        "txIx": {
+            "unTxIndex": 0
+        },
+        "amount": {
+            "lovelace": 3000000,
+            "assets": {}
+        }
+    },
+    {
+        "txHash": {
+            "unTransactionId": "9f125356ac9a9d8c6d76124b35b902b865df3e3f0a8fc2f2e5270b6e72d10bb3"
+        },
+        "txIx": {
+            "unTxIndex": 1
+        },
+        "amount": {
+            "lovelace": 1000000,
+            "assets": {
+                "6ac0ff0e5f.token": 1
+            }
+        }
+    },
+    {
+        "txHash": {
+            "unTransactionId": "b4a2efbc4e8d79c97b3d9c06b5fcf546f246d43be681f38d2eeb631726402e1d"
+        },
+        "txIx": {
+            "unTxIndex": 0
+        },
+        "amount": {
+            "lovelace": 5000000,
+            "assets": {
+                "6ac0ff0e5f.NFT1": 2
+            }
+        }
+    },
+    {
+        "txHash": {
+            "unTransactionId": "c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8"
+        },
+        "txIx": {
+            "unTxIndex": 2
+        },
+        "amount": {
+            "lovelace": 750000,
+            "assets": {}
+        }
+    }
+]

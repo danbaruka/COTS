@@ -1,0 +1,12 @@
+resolver: lts-21.25
+
+packages:
+  - .
+
+allow-newer: true
+
+nix:
+  enable: false
+
+docker:
+  enable: false

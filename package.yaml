@@ -1,0 +1,88 @@
+name: cardano-offline-transaction-simulator
+version: 0.1.0.0
+github: "your-username/cardano-offline-transaction-simulator"
+license: MIT
+author: "Your Name"
+maintainer: "your.email@example.com"
+copyright: "2024 Your Name"
+
+extra-source-files:
+  - README.md
+  - CHANGELOG.md
+
+description: Cardano Offline Transaction Simulator - A CLI tool for simulating Cardano transactions offline
+
+category: Blockchain, Cardano, Simulation
+homepage: https://github.com/your-username/cardano-offline-transaction-simulator
+bug-reports: https://github.com/your-username/cardano-offline-transaction-simulator/issues
+
+dependencies:
+  - base >= 4.14 && < 5
+  - aeson >= 2.0
+  - bytestring >= 0.11
+  - base16-bytestring >= 1.0
+  - text >= 1.2
+  - containers >= 0.6
+  - mtl >= 2.3
+  - optparse-applicative >= 0.17
+  - yaml >= 0.11
+  - filepath >= 1.4
+
+ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Widentities
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wmissing-export-lists
+  - -Wmissing-home-modules
+  - -Wpartial-fields
+  - -Wredundant-constraints
+  - -Wunused-packages
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - COTS
+    - COTS.CLI
+    - COTS.Simulation
+    - COTS.Simulation.Core
+    - COTS.Simulation.UTXO
+    - COTS.Simulation.Fees
+    - COTS.Simulation.Plutus
+    - COTS.Protocol
+    - COTS.Protocol.Parameters
+    - COTS.Protocol.Consensus
+    - COTS.Export
+    - COTS.Export.CardanoCLI
+    - COTS.Export.Koios
+    - COTS.Config
+    - COTS.Config.Parser
+    - COTS.Config.Validation
+    - COTS.Types
+
+executables:
+  cotscli:
+    main: Main.hs
+    source-dirs: app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - cardano-offline-transaction-simulator
+
+tests:
+  cardano-offline-transaction-simulator-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - cardano-offline-transaction-simulator
+      - hspec >= 2.10
+      - QuickCheck >= 2.14
+      - aeson
+      - yaml
