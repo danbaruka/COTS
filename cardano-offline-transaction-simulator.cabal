@@ -43,9 +43,9 @@ library
       COTS.Config.Parser
       COTS.Config.Validation
       COTS.Types
+      COTS.Version
   other-modules:
       COTS.Simulation.Minting
-      COTS.Version
       COTS.Wallet.HD
       Paths_cardano_offline_transaction_simulator
   hs-source-dirs:
@@ -63,6 +63,7 @@ library
     , filepath >=1.4
     , mtl >=2.3
     , optparse-applicative >=0.17
+    , process >=1.6
     , random >=1.2
     , sqlite-simple >=0.4
     , text >=1.2
@@ -90,6 +91,7 @@ executable cotscli
     , filepath >=1.4
     , mtl >=2.3
     , optparse-applicative >=0.17
+    , process >=1.6
     , random >=1.2
     , sqlite-simple >=0.4
     , text >=1.2
@@ -121,6 +123,7 @@ test-suite cardano-offline-transaction-simulator-test
     , hspec >=2.10
     , mtl >=2.3
     , optparse-applicative >=0.17
+    , process >=1.6
     , random >=1.2
     , sqlite-simple >=0.4
     , text >=1.2
