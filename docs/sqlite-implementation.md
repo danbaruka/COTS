@@ -1,14 +1,14 @@
-# Implémentation SQLite pour COTS
+# SQLite Implementation for COTS
 
-## 🎯 Vue d'ensemble
+## 🎯 Overview
 
-L'implémentation SQLite pour COTS (Cardano Offline Transaction Simulator) fournit une gestion persistante et robuste de l'état UTxO, permettant des simulations réalistes et contrôlées des transactions Cardano.
+The SQLite implementation for COTS (Cardano Offline Transaction Simulator) provides persistent and robust management of the UTxO state, enabling realistic and controlled Cardano transaction simulations.
 
 ## 🏗️ Architecture
 
-### Module Database (`src/COTS/Database.hs`)
+### Database Module (`src/COTS/Database.hs`)
 
-Le module principal gère toutes les opérations de base de données :
+The main module manages all database operations:
 
 ```haskell
 module COTS.Database
@@ -36,7 +36,7 @@ module COTS.Database
   ) where
 ```
 
-### Structure de données
+### Data Structure
 
 ```haskell
 data Database = Database
@@ -45,7 +45,7 @@ data Database = Database
   }
 ```
 
-## 📊 Schéma de base de données
+## 📊 Database Schema
 
 ### Table `utxos`
 
@@ -130,45 +130,45 @@ CREATE TABLE assets (
 );
 ```
 
-## 🔧 Fonctionnalités implémentées
+## 🔧 Implemented Features
 
-### 1. Gestion de base de données
+### 1. Database Management
 
-- **Initialisation** : `initDatabase` - Crée les tables et index
-- **Fermeture** : `closeDatabase` - Ferme proprement la connexion
-- **Reset** : `resetDatabase` - Supprime et recrée toutes les tables
+- **Initialization**: `initDatabase` - Creates tables and indexes
+- **Close**: `closeDatabase` - Properly closes the connection
+- **Reset**: `resetDatabase` - Drops and recreates all tables
 
 ### 2. UTxO Management
 
-- **Import** : `importUTXOs` - Charge des UTxOs depuis JSON
-- **Export** : `exportUTXOs` - Sauvegarde les UTxOs en JSON
-- **CRUD** : `addUTXO`, `removeUTXO`, `getUTXOs`
-- **Balance** : `getWalletBalance` - Calcule le solde d'une adresse
+- **Import**: `importUTXOs` - Loads UTxOs from JSON
+- **Export**: `exportUTXOs` - Saves UTxOs to JSON
+- **CRUD**: `addUTXO`, `removeUTXO`, `getUTXOs`
+- **Balance**: `getWalletBalance` - Calculates the balance of an address
 
-### 3. Snapshots et sauvegarde
+### 3. Snapshots and Backup
 
-- **Snapshot** : `snapshotDatabase` - Crée une copie de la base
-- **Load** : `loadSnapshot` - Restaure depuis un snapshot
+- **Snapshot**: `snapshotDatabase` - Creates a copy of the database
+- **Load**: `loadSnapshot` - Restores from a snapshot
 
-### 4. Historique et logs
+### 4. History and Logs
 
-- **Transactions** : `addTransaction`, `getTransactionHistory`
-- **Scripts** : `addScriptLog`, `getScriptLogs`
-- **Assets** : `addAsset`, `getAssets`
+- **Transactions**: `addTransaction`, `getTransactionHistory`
+- **Scripts**: `addScriptLog`, `getScriptLogs`
+- **Assets**: `addAsset`, `getAssets`
 
 ### 5. Inspection
 
-- **Stats** : `inspectDatabase` - Affiche les statistiques
+- **Stats**: `inspectDatabase` - Displays statistics
 
-## 🎮 Interface CLI
+## 🎮 CLI Interface
 
-### Commandes principales
+### Main Commands
 
 ```bash
-# Initialisation
+# Initialization
 cotscli database init --db-file cots.db
 
-# Gestion des UTxOs
+# UTxO Management
 cotscli database import-utxo --db-file cots.db --utxo-file utxos.json
 cotscli database export-utxo --db-file cots.db --out-file exported.json
 
@@ -183,21 +183,21 @@ cotscli database inspect --db-file cots.db
 cotscli database reset --db-file cots.db
 ```
 
-## 🔒 Sécurité et intégrité
+## 🔒 Security and Integrity
 
-### Transactions ACID
+### ACID Transactions
 
-- Toutes les opérations critiques utilisent des transactions SQLite
-- Rollback automatique en cas d'erreur
-- Cohérence garantie
+- All critical operations use SQLite transactions
+- Automatic rollback on error
+- Guaranteed consistency
 
-### Validation des données
+### Data Validation
 
-- Vérification des contraintes d'unicité
-- Validation des formats JSON
-- Gestion des erreurs de parsing
+- Uniqueness constraints checks
+- JSON format validation
+- Error handling for parsing
 
-### Index de performance
+### Performance Indexes
 
 ```sql
 CREATE INDEX idx_utxos_address ON utxos(address);
@@ -208,137 +208,44 @@ CREATE INDEX idx_wallets_address ON wallets(address);
 
 ## 📈 Performance
 
-### Optimisations
+### Optimizations
 
-- **Index** sur les champs de recherche fréquents
-- **Transactions** pour les opérations en lot
-- **Préparations** de requêtes pour les opérations répétées
-- **JSON** pour les données complexes (assets, metadata)
+- **Indexes** on frequently queried fields
+- **Transactions** for batch operations
+- **Prepared statements** for repeated operations
+- **JSON** for complex data (assets, metadata)
 
-### Métriques attendues
+### Expected Metrics
 
-- **Lecture** : ~1000 UTxOs/seconde
-- **Écriture** : ~100 UTxOs/seconde
-- **Snapshot** : ~1MB/seconde
-- **Recherche** : <10ms par adresse
+- **Read**: ~1000 UTxOs/second
+- **Write**: ~100 UTxOs/second
+- **Snapshot**: ~1MB/second
+- **Query**: <10ms per address
 
-## 🧪 Tests
+## 🧪 Testing
 
-### Tests unitaires
+### Unit Tests
 
-- Sérialisation JSON des UTxOs
-- Validation des formats de données
-- Gestion des erreurs
+- JSON serialization of UTxOs
+- Data format validation
+- Error handling
 
-### Tests d'intégration
+### Integration Tests
 
-- Cycle complet import/export
-- Snapshots et restauration
-- Performance avec gros volumes
+- Full import/export cycle
+- Snapshots and restore
+- Performance with large volumes
 
-### Tests de régression
+### Regression Tests
 
-- Compatibilité des formats
-- Migration de schéma
-- Rétrocompatibilité
+- Format compatibility
+- Schema migration
+- Backward compatibility
 
-## 🔄 Workflow recommandé
+## 🔄 Recommended Workflow
 
-### 1. Initialisation
+### 1. Initialization
 
 ```bash
 cotscli database init --db-file simulation.db
 ```
-
-### 2. Import état initial
-
-```bash
-cotscli database import-utxo --db-file simulation.db --utxo-file initial.json
-```
-
-### 3. Simulation
-
-```bash
-# Les transactions mettent à jour automatiquement la base
-cotscli transaction simulate --tx-file tx1.json --db-file simulation.db
-```
-
-### 4. Snapshots
-
-```bash
-cotscli database snapshot --db-file simulation.db --out-file step1.db
-```
-
-### 5. Export résultats
-
-```bash
-cotscli database export-utxo --db-file simulation.db --out-file final.json
-```
-
-## 🚀 Avantages
-
-### ✅ Persistance
-
-- État conservé entre les sessions
-- Pas de rechargement nécessaire
-- Historique complet
-
-### ✅ Contrôle
-
-- Snapshots pour revenir en arrière
-- Reset pour recommencer
-- Export/import pour partager
-
-### ✅ Performance
-
-- Requêtes SQL optimisées
-- Index sur les champs critiques
-- Transactions ACID
-
-### ✅ Débogage
-
-- Fichier unique facile à inspecter
-- Historique des opérations
-- Logs détaillés
-
-### ✅ Portabilité
-
-- SQLite fonctionne partout
-- Fichier unique
-- Compatible avec les outils existants
-
-## 🔮 Évolutions futures
-
-### Fonctionnalités prévues
-
-- **Requêtes avancées** : SQL personnalisé
-- **Migrations** : Mise à jour de schéma
-- **Réplication** : Synchronisation entre bases
-- **Chiffrement** : Protection des données sensibles
-- **Compression** : Optimisation de l'espace
-
-### Intégrations
-
-- **APIs** : Interface REST pour la base
-- **Monitoring** : Métriques en temps réel
-- **Backup** : Sauvegarde automatique
-- **Clustering** : Distribution des données
-
-## 📚 Ressources
-
-### Documentation
-
-- [README.md](../README.md) - Guide utilisateur
-- [examples/database-example.md](../examples/database-example.md) - Exemples d'utilisation
-- [examples/sqlite-demo.sh](../examples/sqlite-demo.sh) - Script de démonstration
-
-### Tests
-
-- [test/DatabaseSpec.hs](../test/DatabaseSpec.hs) - Tests unitaires
-- [test/Spec.hs](../test/Spec.hs) - Suite de tests complète
-
-### Dépendances
-
-- `sqlite3 >=0.5` - Interface SQLite
-- `time >=1.9` - Gestion des timestamps
-- `aeson >=2.0` - Sérialisation JSON

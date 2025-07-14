@@ -1,37 +1,37 @@
-# 🏁 Exemples de commandes COTS CLI — Workflow complet
+# 🏁 COTS CLI Command Examples — Complete Workflow
 
-## Dossier de travail et option --home
+## Working Directory and --home Option
 
-Par défaut, tous les fichiers (db, utxos, clés, etc.) sont stockés dans `~/.COTS_NODE`.
-Vous pouvez changer ce dossier avec l’option globale `--home` :
+By default, all files (db, utxos, keys, etc.) are stored in `~/.COTS_NODE`.
+You can change this directory with the global `--home` option:
 
 ```bash
-cotscli --home /chemin/vers/mon_cots_home database init
+cotscli --home /path/to/my_cots_home database init
 ```
 
-Toutes les commandes suivantes utiliseront ce dossier comme racine.
+All following commands will use this directory as the root.
 
 ---
 
-## 1. Initialiser la base de données SQLite
+## 1. Initialize the SQLite Database
 
 ```bash
 cotscli database init --db-file cots.db
 ```
 
-## 2. Importer des UTXOs de test
+## 2. Import Test UTXOs
 
 ```bash
 cotscli database import-utxo --db-file cots.db --utxo-file utxos.json
 ```
 
-## 3. Générer une paire de clés de paiement
+## 3. Generate a Payment Key Pair
 
 ```bash
 cotscli address key-gen --verification-key-file payment.vkey --signing-key-file payment.skey
 ```
 
-## 4. Construire une adresse à partir de la clé publique
+## 4. Build an Address from the Public Key
 
 ```bash
 cotscli address build \
@@ -40,13 +40,13 @@ cotscli address build \
   --out-file address.addr
 ```
 
-## 5. Lister les UTXOs disponibles
+## 5. List Available UTXOs
 
 ```bash
 cotscli utxo list --db-file cots.db
 ```
 
-## 6. Construire une transaction
+## 6. Build a Transaction
 
 ```bash
 cotscli transaction build \
@@ -57,7 +57,7 @@ cotscli transaction build \
   --out-file tx.raw
 ```
 
-## 7. Estimer les frais d'une transaction
+## 7. Estimate Transaction Fees
 
 ```bash
 cotscli transaction estimate-fee \
@@ -65,7 +65,7 @@ cotscli transaction estimate-fee \
   --db-file cots.db
 ```
 
-## 8. Signer une transaction (offline)
+## 8. Sign a Transaction (offline)
 
 ```bash
 cotscli transaction sign \
@@ -74,7 +74,7 @@ cotscli transaction sign \
   --out-file tx.signed
 ```
 
-## 9. Simuler une transaction
+## 9. Simulate a Transaction
 
 ```bash
 cotscli transaction simulate \
@@ -82,7 +82,7 @@ cotscli transaction simulate \
   --db-file cots.db
 ```
 
-## 10. Valider une transaction
+## 10. Validate a Transaction
 
 ```bash
 cotscli transaction validate \
@@ -90,7 +90,7 @@ cotscli transaction validate \
   --db-file cots.db
 ```
 
-## 11. Exporter une transaction (format Cardano CLI)
+## 11. Export a Transaction (Cardano CLI format)
 
 ```bash
 cotscli transaction export \
@@ -99,13 +99,13 @@ cotscli transaction export \
   --out-file tx.exported
 ```
 
-## 12. Décoder une transaction
+## 12. Decode a Transaction
 
 ```bash
 cotscli transaction decode --tx-file tx.signed --verbose
 ```
 
-## 13. Importer un wallet depuis un fichier JSON
+## 13. Import a Wallet from a JSON File
 
 ```bash
 cotscli wallet import \
@@ -113,7 +113,7 @@ cotscli wallet import \
   --db-file cots.db
 ```
 
-## 14. Exporter un wallet vers un fichier JSON
+## 14. Export a Wallet to a JSON File
 
 ```bash
 cotscli wallet export \
@@ -122,7 +122,7 @@ cotscli wallet export \
   --file wallet.json
 ```
 
-## 15. Réserver des UTXOs pour un montant donné
+## 15. Reserve UTXOs for a Given Amount
 
 ```bash
 cotscli utxo reserve \
@@ -132,7 +132,7 @@ cotscli utxo reserve \
   --out-file reserved-utxos.json
 ```
 
-## 16. Mettre à jour les paramètres protocolaires
+## 16. Update Protocol Parameters
 
 ```bash
 cotscli protocol update \
@@ -142,8 +142,8 @@ cotscli protocol update \
 
 ---
 
-**Remarques :**
+**Notes:**
 
-- Remplace `<TXID>`, `<TXIX>`, `<WALLET_NAME>`, etc. par les valeurs réelles de ton environnement.
-- Les chemins de fichiers (`payment.vkey`, `address.addr`, etc.) sont relatifs à l’endroit où tu exécutes les commandes.
-- Pour plus de détails sur chaque commande, utilise `--help` (ex : `cotscli transaction build --help`).
+- Replace `<TXID>`, `<TXIX>`, `<WALLET_NAME>`, etc. with actual values from your environment.
+- File paths (`payment.vkey`, `address.addr`, etc.) are relative to your current working directory.
+- For more details on each command, use `--help` (e.g., `cotscli transaction build --help`).

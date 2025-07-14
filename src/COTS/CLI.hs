@@ -71,13 +71,12 @@ import System.FilePath ((</>))
 import System.Random (randomRIO)
 import Text.Printf (printf)
 
--- Ajout d'une nouvelle structure pour les options globales
-
+-- Add a new structure for global options
 data GlobalOptions = GlobalOptions
   { goHome :: FilePath
   }
 
--- Parser pour l'option globale --home
+-- Parser for the global --home option
 parseGlobalOptions :: Parser GlobalOptions
 parseGlobalOptions =
   GlobalOptions
@@ -86,7 +85,7 @@ parseGlobalOptions =
           <> metavar "DIR"
           <> value "~/.COTS_NODE"
           <> showDefault
-          <> help "Répertoire racine pour tous les fichiers COTS (par défaut: ~/.COTS_NODE)"
+          <> help "Root directory for all COTS files (default: ~/.COTS_NODE)"
       )
 
 -- | Get the root COTS_NODE directory (~/.COTS_NODE)
@@ -395,7 +394,7 @@ homeOption =
         <> metavar "DIR"
         <> value "~/.COTS_NODE"
         <> showDefault
-        <> help "Répertoire racine pour tous les fichiers COTS (par défaut: ~/.COTS_NODE)"
+        <> help "Root directory for all COTS files (default: ~/.COTS_NODE)"
     )
 
 -- 3. Dans runCLI, parser d'abord --home, puis la commande
@@ -440,6 +439,104 @@ runCommand cmd homeDir = case cmd of
   StakeAddressCmd stakeAddrCmd -> runStakeAddressCommand stakeAddrCmd homeDir
   MintCmd mintCmd -> runMintCommand mintCmd homeDir
   Version -> runVersion homeDir
+
+-- Restore commandParser
+commandParser :: Parser Command
+commandParser =
+  hsubparser
+    ( command "database" (info databaseSub (progDesc "Manage the SQLite database and snapshots"))
+        <> command "transaction" (info transactionSub (progDesc "Build, sign, simulate, and export Cardano transactions"))
+        <> command "utxo" (info utxoSub (progDesc "List and filter UTXOs"))
+        <> command "protocol" (info protocolSub (progDesc "Manage protocol parameters"))
+        <> command "wallet" (info walletSub (progDesc "Manage wallets and addresses"))
+        <> command "address" (info addressSub (progDesc "Manage payment addresses"))
+        <> command "stake-address" (info stakeAddressSub (progDesc "Manage staking addresses"))
+        <> command "mint" (info mintSub (progDesc "Token minting management"))
+        <> command "version" (info (pure Version) (progDesc "Show COTS version"))
+    )
+
+-- === Place *_Sub combinators here, just before commandParser ===
+
+databaseSub :: Parser Command
+databaseSub = DatabaseCmd <$> databaseParser
+
+transactionSub :: Parser Command
+transactionSub = TransactionCmd <$> transactionParser
+
+utxoSub :: Parser Command
+utxoSub = UTXOCmd <$> utxoParser
+
+protocolSub :: Parser Command
+protocolSub = ProtocolCmd <$> protocolParser
+
+walletSub :: Parser Command
+walletSub = WalletCmd <$> walletParser
+
+addressSub :: Parser Command
+addressSub = AddressCmd <$> addressParser
+
+stakeAddressSub :: Parser Command
+stakeAddressSub = StakeAddressCmd <$> stakeAddressParser
+
+mintSub :: Parser Command
+mintSub = MintCmd <$> mintParser
+
+-- Restore all run*Command functions
+defaultRun :: String -> IO ()
+defaultRun name = putStrLn $ "[ERROR] Command dispatcher missing for: " ++ name
+
+runTransactionCommand :: TransactionCommand -> FilePath -> IO ()
+runTransactionCommand cmd homeDir = case cmd of
+  Build opts -> runBuild opts homeDir
+  Simulate opts -> runSimulate opts homeDir
+  Sign opts -> runSign opts homeDir
+  Validate opts -> runValidate opts homeDir
+  Export opts -> runExport opts homeDir
+  Decode opts -> runDecode opts homeDir
+
+runUTXOCommand :: UTXOCommand -> FilePath -> IO ()
+runUTXOCommand cmd homeDir = case cmd of
+  List opts -> runList opts homeDir
+  Reserve opts -> runReserve opts homeDir
+
+runProtocolCommand :: ProtocolCommand -> FilePath -> IO ()
+runProtocolCommand cmd homeDir = case cmd of
+  Update opts -> runUpdate opts homeDir
+
+runDatabaseCommand :: DatabaseCommand -> FilePath -> IO ()
+runDatabaseCommand cmd homeDir = case cmd of
+  Init opts -> runInit opts homeDir
+  Reset opts -> runReset opts homeDir
+  Snapshot opts -> runSnapshot opts homeDir
+  LoadSnapshot opts -> runLoadSnapshot opts homeDir
+  ImportUTXO opts -> runImportUTXO opts homeDir
+  ExportUTXO opts -> runExportUTXO opts homeDir
+  Inspect opts -> runInspect opts homeDir
+
+runWalletCommand :: WalletCommand -> FilePath -> IO ()
+runWalletCommand cmd homeDir = case cmd of
+  Create opts -> runCreateWallet opts homeDir
+  ListWallets opts -> runListWallets opts homeDir
+  Import opts -> runImportWallet opts homeDir
+  ExportWallet opts -> runExportWallet opts homeDir
+  Info opts -> runWalletInfo opts homeDir
+
+runAddressCommand :: AddressCommand -> FilePath -> IO ()
+runAddressCommand cmd homeDir = case cmd of
+  AddressKeyGen opts -> runAddressKeyGen opts homeDir
+  AddressBuild opts -> runAddressBuild opts homeDir
+  AddressInfo opts -> runAddressInfo opts homeDir
+
+runStakeAddressCommand :: StakeAddressCommand -> FilePath -> IO ()
+runStakeAddressCommand cmd homeDir = case cmd of
+  StakeAddressKeyGen opts -> runStakeAddressKeyGen opts homeDir
+  StakeAddressBuild opts -> runStakeAddressBuild opts homeDir
+  StakeAddressInfo opts -> runStakeAddressInfo opts homeDir
+
+runMintCommand :: MintCommand -> FilePath -> IO ()
+runMintCommand cmd homeDir = case cmd of
+  MintBuild opts -> runMintBuild opts homeDir
+  MintCalculate opts -> runMintCalculate opts homeDir
 
 -- | Run build command
 runBuild :: BuildOptions -> FilePath -> IO ()
@@ -1256,3 +1353,267 @@ runVersion homeDir = do
   version <- getVersionString
   putStrLn $ "Cardano Offline Transaction Simulator (COTS) v" ++ version
   putStrLn "cardano-cli compatible interface"
+
+-- === Place *_Sub combinators here, after parser definitions ===
+
+-- | Database subcommand parser
+databaseParser :: Parser DatabaseCommand
+databaseParser =
+  hsubparser
+    ( command "init" (info (Init <$> initOptions) (progDesc "Initialize the SQLite database and home structure"))
+        <> command "reset" (info (Reset <$> resetOptions) (progDesc "Reset the SQLite database (dangerous)"))
+        <> command "snapshot" (info (Snapshot <$> snapshotOptions) (progDesc "Create a database snapshot"))
+        <> command "load-snapshot" (info (LoadSnapshot <$> loadSnapshotOptions) (progDesc "Load a database snapshot"))
+        <> command "import-utxo" (info (ImportUTXO <$> importUTXOptions) (progDesc "Import UTXOs from a JSON file"))
+        <> command "export-utxo" (info (ExportUTXO <$> exportUTXOptions) (progDesc "Export UTXOs to a JSON file"))
+        <> command "inspect" (info (Inspect <$> inspectOptions) (progDesc "Inspect the database and print statistics"))
+    )
+
+initOptions :: Parser InitOptions
+initOptions = InitOptions <$> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+resetOptions :: Parser ResetOptions
+resetOptions = ResetOptions <$> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+snapshotOptions :: Parser SnapshotOptions
+snapshotOptions =
+  SnapshotOptions
+    <$> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+    <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the snapshot output file")
+
+loadSnapshotOptions :: Parser LoadSnapshotOptions
+loadSnapshotOptions =
+  LoadSnapshotOptions
+    <$> strOption (long "snapshot-file" <> metavar "FILE" <> help "Path to the snapshot file")
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+importUTXOptions :: Parser ImportUTXOptions
+importUTXOptions =
+  ImportUTXOptions
+    <$> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+    <*> strOption (long "utxo-file" <> metavar "FILE" <> help "Path to the UTXO JSON file")
+
+exportUTXOptions :: Parser ExportUTXOptions
+exportUTXOptions =
+  ExportUTXOptions
+    <$> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+    <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the UTXO output JSON file")
+
+inspectOptions :: Parser InspectOptions
+inspectOptions = InspectOptions <$> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+-- | Wallet subcommand parser
+walletParser :: Parser WalletCommand
+walletParser =
+  hsubparser
+    ( command "create" (info (Create <$> createWalletOptions) (progDesc "Create a new wallet"))
+        <> command "list" (info (ListWallets <$> listWalletsOptions) (progDesc "List all wallets"))
+        <> command "import" (info (Import <$> importWalletOptions) (progDesc "Import a wallet from a file"))
+        <> command "export" (info (ExportWallet <$> exportWalletOptions) (progDesc "Export a wallet to a file"))
+        <> command "info" (info (Info <$> walletInfoOptions) (progDesc "Show wallet information"))
+    )
+
+createWalletOptions :: Parser CreateWalletOptions
+createWalletOptions =
+  CreateWalletOptions
+    <$> strOption (long "name" <> metavar "NAME" <> help "Wallet name")
+    <*> strOption (long "address" <> metavar "ADDRESS" <> help "Wallet address")
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+listWalletsOptions :: Parser ListWalletsOptions
+listWalletsOptions = ListWalletsOptions <$> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+importWalletOptions :: Parser ImportWalletOptions
+importWalletOptions =
+  ImportWalletOptions
+    <$> strOption (long "file" <> metavar "FILE" <> help "Path to the wallet file to import")
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+exportWalletOptions :: Parser ExportWalletOptions
+exportWalletOptions =
+  ExportWalletOptions
+    <$> strOption (long "name" <> metavar "NAME" <> help "Wallet name")
+    <*> strOption (long "file" <> metavar "FILE" <> help "Path to the wallet file to export to")
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+walletInfoOptions :: Parser WalletInfoOptions
+walletInfoOptions =
+  WalletInfoOptions
+    <$> strOption (long "name" <> metavar "NAME" <> help "Wallet name")
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+-- | Address subcommand parser
+addressParser :: Parser AddressCommand
+addressParser =
+  hsubparser
+    ( command "key-gen" (info (AddressKeyGen <$> addressKeyGenOptions) (progDesc "Generate a new payment key pair"))
+        <> command "build" (info (AddressBuild <$> addressBuildOptions) (progDesc "Build a payment address"))
+        <> command "info" (info (AddressInfo <$> addressInfoOptions) (progDesc "Show information about a payment address"))
+    )
+
+addressKeyGenOptions :: Parser AddressKeyGenOptions
+addressKeyGenOptions =
+  AddressKeyGenOptions
+    <$> strOption (long "verification-key-file" <> metavar "FILE" <> help "Path to the verification key file")
+    <*> strOption (long "signing-key-file" <> metavar "FILE" <> help "Path to the signing key file")
+    <*> optional (strOption (long "key-type" <> metavar "TYPE" <> help "Key type (normal, extended)"))
+
+addressBuildOptions :: Parser AddressBuildOptions
+addressBuildOptions =
+  AddressBuildOptions
+    <$> optional (strOption (long "payment-verification-key-file" <> metavar "FILE" <> help "Path to the payment verification key file"))
+    <*> optional (strOption (long "stake-verification-key-file" <> metavar "FILE" <> help "Path to the stake verification key file"))
+    <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the output address file")
+    <*> option auto (long "network" <> metavar "NETWORK" <> help "Network (Mainnet, Testnet, Preview, Preprod)")
+
+addressInfoOptions :: Parser AddressInfoOptions
+addressInfoOptions = AddressInfoOptions <$> strOption (long "address" <> metavar "ADDRESS" <> help "Address to inspect")
+
+-- | Stake address subcommand parser
+stakeAddressParser :: Parser StakeAddressCommand
+stakeAddressParser =
+  hsubparser
+    ( command "key-gen" (info (StakeAddressKeyGen <$> stakeAddressKeyGenOptions) (progDesc "Generate a new stake key pair"))
+        <> command "build" (info (StakeAddressBuild <$> stakeAddressBuildOptions) (progDesc "Build a stake address"))
+        <> command "info" (info (StakeAddressInfo <$> stakeAddressInfoOptions) (progDesc "Show information about a stake address"))
+    )
+
+stakeAddressKeyGenOptions :: Parser StakeAddressKeyGenOptions
+stakeAddressKeyGenOptions =
+  StakeAddressKeyGenOptions
+    <$> strOption (long "verification-key-file" <> metavar "FILE" <> help "Path to the stake verification key file")
+    <*> strOption (long "signing-key-file" <> metavar "FILE" <> help "Path to the stake signing key file")
+
+stakeAddressBuildOptions :: Parser StakeAddressBuildOptions
+stakeAddressBuildOptions =
+  StakeAddressBuildOptions
+    <$> strOption (long "stake-verification-key-file" <> metavar "FILE" <> help "Path to the stake verification key file")
+    <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the output stake address file")
+    <*> option auto (long "network" <> metavar "NETWORK" <> help "Network (Mainnet, Testnet, Preview, Preprod)")
+
+stakeAddressInfoOptions :: Parser StakeAddressInfoOptions
+stakeAddressInfoOptions = StakeAddressInfoOptions <$> strOption (long "address" <> metavar "ADDRESS" <> help "Stake address to inspect")
+
+-- | Mint subcommand parser
+mintParser :: Parser MintCommand
+mintParser =
+  hsubparser
+    ( command "build" (info (MintBuild <$> mintBuildOptions) (progDesc "Build a minting transaction"))
+        <> command "calculate" (info (MintCalculate <$> mintCalculateOptions) (progDesc "Calculate minting fees"))
+    )
+
+mintBuildOptions :: Parser MintBuildOptions
+mintBuildOptions =
+  MintBuildOptions
+    <$> many (strOption (long "tx-in" <> metavar "TXIN" <> help "Transaction input"))
+    <*> many (strOption (long "tx-out" <> metavar "TXOUT" <> help "Transaction output"))
+    <*> optional (strOption (long "mint" <> metavar "MINT" <> help "Minting specification"))
+    <*> optional (strOption (long "mint-script-file" <> metavar "FILE" <> help "Path to the minting script file"))
+    <*> optional (strOption (long "change-address" <> metavar "ADDRESS" <> help "Change address"))
+    <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the output transaction file")
+    <*> option auto (long "network" <> metavar "NETWORK" <> help "Network (Mainnet, Testnet, Preview, Preprod)")
+    <*> strOption (long "protocol-params-file" <> metavar "FILE" <> help "Path to the protocol parameters file")
+
+mintCalculateOptions :: Parser MintCalculateOptions
+mintCalculateOptions =
+  MintCalculateOptions
+    <$> strOption (long "policy-id" <> metavar "POLICYID" <> help "Policy ID")
+    <*> strOption (long "asset-name" <> metavar "ASSET" <> help "Asset name")
+    <*> option auto (long "quantity" <> metavar "QTY" <> help "Quantity to mint")
+    <*> strOption (long "protocol-params-file" <> metavar "FILE" <> help "Path to the protocol parameters file")
+
+-- | Transaction subcommand parser
+transactionParser :: Parser TransactionCommand
+transactionParser =
+  hsubparser
+    ( command "build" (info (Build <$> buildOptions) (progDesc "Build a transaction"))
+        <> command "simulate" (info (Simulate <$> simulateOptions) (progDesc "Simulate a transaction"))
+        <> command "sign" (info (Sign <$> signOptions) (progDesc "Sign a transaction"))
+        <> command "validate" (info (Validate <$> validateOptions) (progDesc "Validate a transaction"))
+        <> command "export" (info (Export <$> exportOptions) (progDesc "Export a transaction"))
+        <> command "decode" (info (Decode <$> decodeOptions) (progDesc "Decode a transaction"))
+    )
+
+buildOptions :: Parser BuildOptions
+buildOptions =
+  BuildOptions
+    <$> many (strOption (long "tx-in" <> metavar "TXIN" <> help "Transaction input (format: TXID#TXIX)"))
+    <*> many (strOption (long "tx-out" <> metavar "TXOUT" <> help "Transaction output (format: ADDRESS+AMOUNT)"))
+    <*> optional (strOption (long "change-address" <> metavar "ADDRESS" <> help "Change address for excess funds"))
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+    <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the output transaction file")
+    <*> switch (long "offline" <> help "Run in offline mode (always true for COTS)")
+    <*> optional (option auto (long "fee" <> metavar "LOVELACE" <> help "Fee in lovelace (optional)"))
+    <*> optional (option auto (long "ttl" <> metavar "SLOT" <> help "Time-to-live (slot number, optional)"))
+    <*> optional (strOption (long "script-file" <> metavar "FILE" <> help "Path to the Plutus script file (optional)"))
+    <*> optional (strOption (long "datum-file" <> metavar "FILE" <> help "Path to the datum file (optional)"))
+    <*> optional (strOption (long "redeemer-file" <> metavar "FILE" <> help "Path to the redeemer file (optional)"))
+
+simulateOptions :: Parser SimulateOptions
+simulateOptions =
+  SimulateOptions
+    <$> strOption (long "tx-file" <> metavar "FILE" <> help "Path to the transaction file to simulate")
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+    <*> switch (long "verbose" <> help "Show detailed simulation output")
+
+signOptions :: Parser SignOptions
+signOptions =
+  SignOptions
+    <$> strOption (long "tx-file" <> metavar "FILE" <> help "Path to the transaction file to sign")
+    <*> strOption (long "signing-key-file" <> metavar "FILE" <> help "Path to the signing key file")
+    <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the signed transaction output file")
+
+validateOptions :: Parser ValidateOptions
+validateOptions =
+  ValidateOptions
+    <$> strOption (long "tx-file" <> metavar "FILE" <> help "Path to the transaction file to validate")
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+
+exportOptions :: Parser ExportOptions
+exportOptions =
+  ExportOptions
+    <$> strOption (long "tx-file" <> metavar "FILE" <> help "Path to the transaction file to export")
+    <*> option auto (long "format" <> metavar "FORMAT" <> help "Export format (CardanoCLI, Koios, JSON)")
+    <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the exported transaction file")
+
+decodeOptions :: Parser DecodeOptions
+decodeOptions =
+  DecodeOptions
+    <$> strOption (long "tx-file" <> metavar "FILE" <> help "Path to the transaction file to decode")
+    <*> switch (long "verbose" <> help "Show detailed decoding output")
+
+-- | UTXO subcommand parser
+utxoParser :: Parser UTXOCommand
+utxoParser =
+  hsubparser
+    ( command "list" (info (List <$> listOptions) (progDesc "List UTXOs"))
+        <> command "reserve" (info (Reserve <$> reserveOptions) (progDesc "Reserve UTXOs"))
+    )
+
+listOptions :: Parser ListOptions
+listOptions =
+  ListOptions
+    <$> optional (strOption (long "address" <> metavar "ADDRESS" <> help "Filter UTXOs by address (optional)"))
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+    <*> switch (long "verbose" <> help "Show detailed UTXO output")
+
+reserveOptions :: Parser ReserveOptions
+reserveOptions =
+  ReserveOptions
+    <$> strOption (long "address" <> metavar "ADDRESS" <> help "Address to reserve UTXOs for")
+    <*> option auto (long "amount" <> metavar "LOVELACE" <> help "Amount to reserve in lovelace")
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+    <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the reserved UTXOs output file")
+
+-- | Protocol subcommand parser
+protocolParser :: Parser ProtocolCommand
+protocolParser =
+  hsubparser
+    ( command "update" (info (Update <$> updateOptions) (progDesc "Update protocol parameters"))
+    )
+
+updateOptions :: Parser UpdateOptions
+updateOptions =
+  UpdateOptions
+    <$> strOption (long "protocol-params-file" <> metavar "FILE" <> help "Path to the protocol parameters file")
+    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
