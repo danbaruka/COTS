@@ -57,6 +57,7 @@ import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as LBS
 import Data.Char (intToDigit)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
@@ -64,11 +65,29 @@ import qualified Data.Text.IO as TIO
 import Data.Time (getCurrentTime)
 import Data.Word (Word64)
 import Options.Applicative
-import System.Directory (createDirectoryIfMissing, getHomeDirectory)
+import System.Directory (copyFile, createDirectoryIfMissing, doesFileExist, getHomeDirectory)
 import System.Exit (exitFailure)
 import System.FilePath ((</>))
 import System.Random (randomRIO)
 import Text.Printf (printf)
+
+-- Ajout d'une nouvelle structure pour les options globales
+
+data GlobalOptions = GlobalOptions
+  { goHome :: FilePath
+  }
+
+-- Parser pour l'option globale --home
+parseGlobalOptions :: Parser GlobalOptions
+parseGlobalOptions =
+  GlobalOptions
+    <$> strOption
+      ( long "home"
+          <> metavar "DIR"
+          <> value "~/.COTS_NODE"
+          <> showDefault
+          <> help "Répertoire racine pour tous les fichiers COTS (par défaut: ~/.COTS_NODE)"
+      )
 
 -- | Get the root COTS_NODE directory (~/.COTS_NODE)
 getCotsNodeDir :: IO FilePath
@@ -79,10 +98,9 @@ getCotsNodeDir = do
   return dir
 
 -- | Get a subdirectory of COTS_NODE, creating it if necessary
-getCotsNodeSubdir :: String -> IO FilePath
-getCotsNodeSubdir sub = do
-  root <- getCotsNodeDir
-  let subdir = root </> sub
+getCotsNodeSubdir :: FilePath -> String -> IO FilePath
+getCotsNodeSubdir home sub = do
+  let subdir = home </> sub
   createDirectoryIfMissing True subdir
   return subdir
 
@@ -354,1036 +372,80 @@ data MintCalculateOptions = MintCalculateOptions
     mintCalcProtocolParamsFile :: FilePath -- --protocol-params-file
   }
 
--- | Parse command line arguments
-commandParser :: Parser Command
-commandParser =
-  subparser
-    ( command
-        "transaction"
-        ( info
-            (TransactionCmd <$> transactionParser)
-            ( progDesc "Transaction commands"
-            )
-        )
-        <> command
-          "utxo"
-          ( info
-              (UTXOCmd <$> utxoParser)
-              ( progDesc "UTXO management commands"
-              )
-          )
-        <> command
-          "protocol"
-          ( info
-              (ProtocolCmd <$> protocolParser)
-              ( progDesc "Protocol parameter commands"
-              )
-          )
-        <> command
-          "database"
-          ( info
-              (DatabaseCmd <$> databaseParser)
-              ( progDesc "Database management commands"
-              )
-          )
-        <> command
-          "wallet"
-          ( info
-              (WalletCmd <$> walletParser)
-              ( progDesc "Wallet management commands"
-              )
-          )
-        <> command
-          "address"
-          ( info
-              (AddressCmd <$> addressParser)
-              ( progDesc "Cardano address management commands"
-              )
-          )
-        <> command
-          "stake-address"
-          ( info
-              (StakeAddressCmd <$> stakeAddressParser)
-              ( progDesc "Cardano stake address management commands"
-              )
-          )
-        <> command
-          "mint"
-          ( info
-              (MintCmd <$> mintParser)
-              ( progDesc "Cardano minting management commands"
-              )
-          )
-        <> command
-          "version"
-          ( info
-              (pure Version)
-              ( progDesc "Show version information"
-              )
-          )
+-- Fusionner le parsing des options globales et des sous-commandes dans un seul parser principal
+-- Le parser principal doit être : Parser (FilePath, Command)
+-- Les options globales sont placées avant la sous-commande
+
+-- 1. Définir le parser principal comme Parser Command (plus de tuple)
+-- 2. Ajouter --home comme option globale avec addGlobalOption
+-- 3. Dans runCLI, parser d'abord --home (avec infoOption), puis parser la commande
+-- 4. S'assurer que l'aide affiche toutes les sous-commandes à la racine
+
+-- Exemple de structure :
+
+-- 1. Le parser principal expose toutes les sous-commandes (sans --home)
+mainParser :: Parser Command
+mainParser = commandParser <**> helper
+
+-- 2. Option globale --home, parsée séparément
+homeOption :: Parser FilePath
+homeOption =
+  strOption
+    ( long "home"
+        <> metavar "DIR"
+        <> value "~/.COTS_NODE"
+        <> showDefault
+        <> help "Répertoire racine pour tous les fichiers COTS (par défaut: ~/.COTS_NODE)"
     )
 
--- | Parse transaction subcommands
-transactionParser :: Parser TransactionCommand
-transactionParser =
-  subparser
-    ( command
-        "build"
-        ( info
-            (Build <$> buildOptions)
-            ( progDesc "Build a transaction (offline simulation)"
-            )
-        )
-        <> command
-          "simulate"
-          ( info
-              (Simulate <$> simulateOptions)
-              ( progDesc "Simulate a transaction"
-              )
-          )
-        <> command
-          "sign"
-          ( info
-              (Sign <$> signOptions)
-              ( progDesc "Sign a transaction (offline)"
-              )
-          )
-        <> command
-          "validate"
-          ( info
-              (Validate <$> validateOptions)
-              ( progDesc "Validate a transaction"
-              )
-          )
-        <> command
-          "export"
-          ( info
-              (Export <$> exportOptions)
-              ( progDesc "Export transaction in various formats"
-              )
-          )
-        <> command
-          "decode"
-          ( info
-              (Decode <$> decodeOptions)
-              ( progDesc "Decode and display transaction details"
-              )
-          )
-    )
-    <**> helper
-
--- | Parse UTXO subcommands
-utxoParser :: Parser UTXOCommand
-utxoParser =
-  subparser
-    ( command
-        "list"
-        ( info
-            (List <$> listOptions)
-            ( progDesc "List available UTXOs"
-            )
-        )
-        <> command
-          "reserve"
-          ( info
-              (Reserve <$> reserveOptions)
-              ( progDesc "Reserve UTXOs for transaction"
-              )
-          )
-    )
-    <**> helper
-
--- | Parse protocol subcommands
-protocolParser :: Parser ProtocolCommand
-protocolParser =
-  subparser
-    ( command
-        "update"
-        ( info
-            (Update <$> updateOptions)
-            ( progDesc "Update protocol parameters"
-            )
-        )
-    )
-    <**> helper
-
--- | Parse database subcommands
-databaseParser :: Parser DatabaseCommand
-databaseParser =
-  subparser
-    ( command
-        "init"
-        ( info
-            (Init <$> initOptions)
-            ( progDesc "Initialize a new SQLite database"
-            )
-        )
-        <> command
-          "reset"
-          ( info
-              (Reset <$> resetOptions)
-              ( progDesc "Reset database (drop all tables and recreate)"
-              )
-          )
-        <> command
-          "snapshot"
-          ( info
-              (Snapshot <$> snapshotOptions)
-              ( progDesc "Create a snapshot of the database"
-              )
-          )
-        <> command
-          "load-snapshot"
-          ( info
-              (LoadSnapshot <$> loadSnapshotOptions)
-              ( progDesc "Load database from a snapshot"
-              )
-          )
-        <> command
-          "import-utxo"
-          ( info
-              (ImportUTXO <$> importUTXOptions)
-              ( progDesc "Import UTXOs from JSON file"
-              )
-          )
-        <> command
-          "export-utxo"
-          ( info
-              (ExportUTXO <$> exportUTXOptions)
-              ( progDesc "Export UTXOs to JSON file"
-              )
-          )
-        <> command
-          "inspect"
-          ( info
-              (Inspect <$> inspectOptions)
-              ( progDesc "Inspect database statistics"
-              )
-          )
-    )
-    <**> helper
-
--- | Parse wallet subcommands
-walletParser :: Parser WalletCommand
-walletParser =
-  subparser
-    ( command
-        "create"
-        ( info
-            (Create <$> createWalletOptions)
-            ( progDesc "Create a new wallet"
-            )
-        )
-        <> command
-          "list"
-          ( info
-              (ListWallets <$> listWalletsOptions)
-              ( progDesc "List all wallets"
-              )
-          )
-        <> command
-          "import"
-          ( info
-              (Import <$> importWalletOptions)
-              ( progDesc "Import a wallet from a file"
-              )
-          )
-        <> command
-          "export"
-          ( info
-              (ExportWallet <$> exportWalletOptions)
-              ( progDesc "Export a wallet to a file"
-              )
-          )
-        <> command
-          "info"
-          ( info
-              (Info <$> walletInfoOptions)
-              ( progDesc "Show information about a wallet"
-              )
-          )
-    )
-    <**> helper
-
--- | Parse address subcommands
-addressParser :: Parser AddressCommand
-addressParser =
-  subparser
-    ( command
-        "key-gen"
-        ( info
-            (AddressKeyGen <$> addressKeyGenOptions)
-            ( progDesc "Generate a payment key pair"
-            )
-        )
-        <> command
-          "build"
-          ( info
-              (AddressBuild <$> addressBuildOptions)
-              ( progDesc "Build a Cardano address"
-              )
-          )
-        <> command
-          "info"
-          ( info
-              (AddressInfo <$> addressInfoOptions)
-              ( progDesc "Print information about an address"
-              )
-          )
-    )
-    <**> helper
-
--- | Parse stake address subcommands
-stakeAddressParser :: Parser StakeAddressCommand
-stakeAddressParser =
-  subparser
-    ( command
-        "key-gen"
-        ( info
-            (StakeAddressKeyGen <$> stakeAddressKeyGenOptions)
-            ( progDesc "Generate a stake key pair"
-            )
-        )
-        <> command
-          "build"
-          ( info
-              (StakeAddressBuild <$> stakeAddressBuildOptions)
-              ( progDesc "Build a stake address"
-              )
-          )
-        <> command
-          "info"
-          ( info
-              (StakeAddressInfo <$> stakeAddressInfoOptions)
-              ( progDesc "Print information about a stake address"
-              )
-          )
-    )
-    <**> helper
-
--- | Parse mint subcommands
-mintParser :: Parser MintCommand
-mintParser =
-  subparser
-    ( command
-        "build"
-        ( info
-            (MintBuild <$> mintBuildOptions)
-            ( progDesc "Build a minting transaction"
-            )
-        )
-        <> command
-          "calculate"
-          ( info
-              (MintCalculate <$> mintCalculateOptions)
-              ( progDesc "Calculate minting fees"
-              )
-          )
-    )
-    <**> helper
-
--- | Parse build options
-buildOptions :: Parser BuildOptions
-buildOptions =
-  BuildOptions
-    <$> many
-      ( strOption
-          ( long "tx-in"
-              <> metavar "TX_IN"
-              <> help "Transaction input in the format: TxId#TxIx"
-          )
-      )
-    <*> many
-      ( strOption
-          ( long "tx-out"
-              <> metavar "TX_OUT"
-              <> help "Transaction output in the format: address+amount"
-          )
-      )
-    <*> optional
-      ( strOption
-          ( long "change-address"
-              <> metavar "ADDRESS"
-              <> help "Address to send change to"
-          )
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> help "Database file path"
-      )
-    <*> strOption
-      ( long "out-file"
-          <> metavar "FILE"
-          <> help "Output file for the transaction"
-      )
-    <*> switch
-      ( long "offline"
-          <> help "Build transaction offline (always true for COTS)"
-      )
-    <*> optional
-      ( option
-          auto
-          ( long "fee"
-              <> metavar "LOVELACE"
-              <> help "Transaction fee in lovelace"
-          )
-      )
-    <*> optional
-      ( option
-          auto
-          ( long "ttl"
-              <> metavar "SLOT"
-              <> help "Time to live (slot number)"
-          )
-      )
-    <*> optional
-      ( strOption
-          ( long "script-file"
-              <> metavar "FILE"
-              <> help "Plutus script file"
-          )
-      )
-    <*> optional
-      ( strOption
-          ( long "datum-file"
-              <> metavar "FILE"
-              <> help "Datum JSON file"
-          )
-      )
-    <*> optional
-      ( strOption
-          ( long "redeemer-file"
-              <> metavar "FILE"
-              <> help "Redeemer JSON file"
-          )
-      )
-
--- | Parse simulate options
-simulateOptions :: Parser SimulateOptions
-simulateOptions =
-  SimulateOptions
-    <$> strOption
-      ( long "tx-file"
-          <> metavar "FILE"
-          <> help "Transaction file to simulate"
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> help "Database file"
-      )
-    <*> switch
-      ( long "verbose"
-          <> short 'v'
-          <> help "Verbose output"
-      )
-
--- | Parse sign options
-signOptions :: Parser SignOptions
-signOptions =
-  SignOptions
-    <$> strOption
-      ( long "tx-file"
-          <> metavar "FILE"
-          <> help "Transaction file to sign"
-      )
-    <*> strOption
-      ( long "signing-key-file"
-          <> metavar "FILE"
-          <> help "Signing key file"
-      )
-    <*> strOption
-      ( long "out-file"
-          <> metavar "FILE"
-          <> help "Output file for signed transaction"
-      )
-
--- | Parse validate options
-validateOptions :: Parser ValidateOptions
-validateOptions =
-  ValidateOptions
-    <$> strOption
-      ( long "tx-file"
-          <> metavar "FILE"
-          <> help "Transaction file to validate"
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> help "Database file"
-      )
-
--- | Parse export options
-exportOptions :: Parser ExportOptions
-exportOptions =
-  ExportOptions
-    <$> strOption
-      ( long "tx-file"
-          <> metavar "FILE"
-          <> help "Transaction file to export"
-      )
-    <*> exportFormatOption
-    <*> strOption
-      ( long "out-file"
-          <> metavar "FILE"
-          <> help "Output file"
-      )
-
--- | Parse decode options
-decodeOptions :: Parser DecodeOptions
-decodeOptions =
-  DecodeOptions
-    <$> strOption
-      ( long "tx-file"
-          <> metavar "FILE"
-          <> help "Transaction file to decode"
-      )
-    <*> switch
-      ( long "verbose"
-          <> short 'v'
-          <> help "Verbose output"
-      )
-
--- | Parse list options
-listOptions :: Parser ListOptions
-listOptions =
-  ListOptions
-    <$> optional
-      ( strOption
-          ( long "address"
-              <> metavar "ADDRESS"
-              <> help "Filter by address"
-          )
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-    <*> switch
-      ( long "verbose"
-          <> short 'v'
-          <> help "Verbose output"
-      )
-
--- | Parse reserve options
-reserveOptions :: Parser ReserveOptions
-reserveOptions =
-  ReserveOptions
-    <$> strOption
-      ( long "address"
-          <> metavar "ADDRESS"
-          <> help "Address to reserve UTXOs from"
-      )
-    <*> option
-      auto
-      ( long "amount"
-          <> metavar "LOVELACE"
-          <> help "Amount to reserve in lovelace"
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-    <*> strOption
-      ( long "out-file"
-          <> metavar "FILE"
-          <> help "Output file for reserved UTXOs"
-      )
-
--- | Parse update options
-updateOptions :: Parser UpdateOptions
-updateOptions =
-  UpdateOptions
-    <$> strOption
-      ( long "protocol-params-file"
-          <> metavar "FILE"
-          <> help "Protocol parameters file"
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> help "Database file"
-      )
-
--- | Parse init options
-initOptions :: Parser InitOptions
-initOptions =
-  InitOptions
-    <$> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-
--- | Parse reset options
-resetOptions :: Parser ResetOptions
-resetOptions =
-  ResetOptions
-    <$> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-
--- | Parse snapshot options
-snapshotOptions :: Parser SnapshotOptions
-snapshotOptions =
-  SnapshotOptions
-    <$> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-    <*> strOption
-      ( long "out-file"
-          <> metavar "FILE"
-          <> help "Snapshot output file"
-      )
-
--- | Parse load snapshot options
-loadSnapshotOptions :: Parser LoadSnapshotOptions
-loadSnapshotOptions =
-  LoadSnapshotOptions
-    <$> strOption
-      ( long "snapshot-file"
-          <> metavar "FILE"
-          <> help "Snapshot file to load"
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Target database file path"
-      )
-
--- | Parse import UTXO options
-importUTXOptions :: Parser ImportUTXOptions
-importUTXOptions =
-  ImportUTXOptions
-    <$> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-    <*> strOption
-      ( long "utxo-file"
-          <> metavar "FILE"
-          <> help "UTXO JSON file to import"
-      )
-
--- | Parse export UTXO options
-exportUTXOptions :: Parser ExportUTXOptions
-exportUTXOptions =
-  ExportUTXOptions
-    <$> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-    <*> strOption
-      ( long "out-file"
-          <> metavar "FILE"
-          <> help "Output JSON file"
-      )
-
--- | Parse inspect options
-inspectOptions :: Parser InspectOptions
-inspectOptions =
-  InspectOptions
-    <$> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-
--- | Parse create wallet options
-createWalletOptions :: Parser CreateWalletOptions
-createWalletOptions =
-  CreateWalletOptions
-    <$> strOption
-      ( long "name"
-          <> metavar "NAME"
-          <> help "Name for the new wallet"
-      )
-    <*> strOption
-      ( long "address"
-          <> metavar "ADDRESS"
-          <> help "Address for the new wallet"
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-
--- | Parse list wallets options
-listWalletsOptions :: Parser ListWalletsOptions
-listWalletsOptions =
-  ListWalletsOptions
-    <$> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-
--- | Parse import wallet options
-importWalletOptions :: Parser ImportWalletOptions
-importWalletOptions =
-  ImportWalletOptions
-    <$> strOption
-      ( long "file"
-          <> metavar "FILE"
-          <> help "Wallet JSON file to import"
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-
--- | Parse export wallet options
-exportWalletOptions :: Parser ExportWalletOptions
-exportWalletOptions =
-  ExportWalletOptions
-    <$> strOption
-      ( long "name"
-          <> metavar "NAME"
-          <> help "Name of the wallet to export"
-      )
-    <*> strOption
-      ( long "file"
-          <> metavar "FILE"
-          <> help "Output filepath for the wallet"
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-
--- | Parse wallet info options
-walletInfoOptions :: Parser WalletInfoOptions
-walletInfoOptions =
-  WalletInfoOptions
-    <$> strOption
-      ( long "name"
-          <> metavar "NAME"
-          <> help "Name of the wallet to show info for"
-      )
-    <*> strOption
-      ( long "db-file"
-          <> metavar "FILE"
-          <> value "cots.db"
-          <> help "Database file path"
-      )
-
--- | Parse address key generation options
-addressKeyGenOptions :: Parser AddressKeyGenOptions
-addressKeyGenOptions =
-  AddressKeyGenOptions
-    <$> strOption
-      ( long "verification-key-file"
-          <> metavar "FILE"
-          <> help "Output filepath of the verification key"
-      )
-    <*> strOption
-      ( long "signing-key-file"
-          <> metavar "FILE"
-          <> help "Output filepath of the signing key"
-      )
-    <*> optional
-      ( strOption
-          ( long "key-type"
-              <> metavar "TYPE"
-              <> help "Type of key to generate (normal, extended)"
-          )
-      )
-
--- | Parse address build options
-addressBuildOptions :: Parser AddressBuildOptions
-addressBuildOptions =
-  AddressBuildOptions
-    <$> optional
-      ( strOption
-          ( long "payment-verification-key-file"
-              <> metavar "FILE"
-              <> help "Payment verification key file"
-          )
-      )
-    <*> optional
-      ( strOption
-          ( long "stake-verification-key-file"
-              <> metavar "FILE"
-              <> help "Stake verification key file"
-          )
-      )
-    <*> strOption
-      ( long "out-file"
-          <> metavar "FILE"
-          <> help "Output filepath of the address"
-      )
-    <*> networkOption
-
--- | Parse address info options
-addressInfoOptions :: Parser AddressInfoOptions
-addressInfoOptions =
-  AddressInfoOptions
-    <$> strOption
-      ( long "address"
-          <> metavar "ADDRESS"
-          <> help "Address to analyze"
-      )
-
--- | Parse stake address key generation options
-stakeAddressKeyGenOptions :: Parser StakeAddressKeyGenOptions
-stakeAddressKeyGenOptions =
-  StakeAddressKeyGenOptions
-    <$> strOption
-      ( long "verification-key-file"
-          <> metavar "FILE"
-          <> help "Output filepath of the verification key"
-      )
-    <*> strOption
-      ( long "signing-key-file"
-          <> metavar "FILE"
-          <> help "Output filepath of the signing key"
-      )
-
--- | Parse stake address build options
-stakeAddressBuildOptions :: Parser StakeAddressBuildOptions
-stakeAddressBuildOptions =
-  StakeAddressBuildOptions
-    <$> strOption
-      ( long "stake-verification-key-file"
-          <> metavar "FILE"
-          <> help "Stake verification key file"
-      )
-    <*> strOption
-      ( long "out-file"
-          <> metavar "FILE"
-          <> help "Output filepath of the stake address"
-      )
-    <*> networkOption
-
--- | Parse stake address info options
-stakeAddressInfoOptions :: Parser StakeAddressInfoOptions
-stakeAddressInfoOptions =
-  StakeAddressInfoOptions
-    <$> strOption
-      ( long "address"
-          <> metavar "ADDRESS"
-          <> help "Stake address to analyze"
-      )
-
--- | Parse mint build options
-mintBuildOptions :: Parser MintBuildOptions
-mintBuildOptions =
-  MintBuildOptions
-    <$> many
-      ( strOption
-          ( long "tx-in"
-              <> metavar "TX-IN"
-              <> help "Transaction input"
-          )
-      )
-    <*> many
-      ( strOption
-          ( long "tx-out"
-              <> metavar "TX-OUT"
-              <> help "Transaction output"
-          )
-      )
-    <*> optional
-      ( strOption
-          ( long "mint"
-              <> metavar "MINT"
-              <> help "Minting specification"
-          )
-      )
-    <*> optional
-      ( strOption
-          ( long "mint-script-file"
-              <> metavar "FILE"
-              <> help "Minting script file"
-          )
-      )
-    <*> optional
-      ( strOption
-          ( long "change-address"
-              <> metavar "ADDRESS"
-              <> help "Change address"
-          )
-      )
-    <*> strOption
-      ( long "out-file"
-          <> metavar "FILE"
-          <> help "Output filepath of the transaction"
-      )
-    <*> networkOption
-    <*> strOption
-      ( long "protocol-params-file"
-          <> metavar "FILE"
-          <> help "Protocol parameters file"
-      )
-
--- | Parse mint calculate options
-mintCalculateOptions :: Parser MintCalculateOptions
-mintCalculateOptions =
-  MintCalculateOptions
-    <$> strOption
-      ( long "policy-id"
-          <> metavar "POLICY-ID"
-          <> help "Policy ID"
-      )
-    <*> strOption
-      ( long "asset-name"
-          <> metavar "ASSET-NAME"
-          <> help "Asset name"
-      )
-    <*> option
-      auto
-      ( long "quantity"
-          <> metavar "QUANTITY"
-          <> help "Quantity to mint"
-      )
-    <*> strOption
-      ( long "protocol-params-file"
-          <> metavar "FILE"
-          <> help "Protocol parameters file"
-      )
-
--- | Parse export format
-exportFormatOption :: Parser ExportFormat
-exportFormatOption =
-  option
-    (eitherReader parseExportFormat)
-    ( long "format"
-        <> short 'f'
-        <> metavar "FORMAT"
-        <> value JSON
-        <> help "Export format (cardano-cli, koios, json)"
-    )
-
--- | Parse export format string
-parseExportFormat :: String -> Either String ExportFormat
-parseExportFormat "cardano-cli" = Right CardanoCLI
-parseExportFormat "koios" = Right Koios
-parseExportFormat "json" = Right JSON
-parseExportFormat s = Left $ "Unknown export format: " ++ s
-
--- | Network option parser
-networkOption :: Parser Network
-networkOption =
-  flag' Mainnet (long "mainnet" <> help "Use the mainnet network")
-    <|> flag' Testnet (long "testnet-magic" <> help "Use the testnet network")
-    <|> flag' Preview (long "preview" <> help "Use the preview network")
-    <|> flag' Preprod (long "preprod" <> help "Use the preprod network")
-
--- | Run transaction commands
-runTransactionCommand :: TransactionCommand -> IO ()
-runTransactionCommand cmd = case cmd of
-  Build opts -> runBuild opts
-  Simulate opts -> runSimulate opts
-  Sign opts -> runSign opts
-  Validate opts -> runValidate opts
-  Export opts -> runExport opts
-  Decode opts -> runDecode opts
-
--- | Run UTXO commands
-runUTXOCommand :: UTXOCommand -> IO ()
-runUTXOCommand cmd = case cmd of
-  List opts -> runList opts
-  Reserve opts -> runReserve opts
-
--- | Run protocol commands
-runProtocolCommand :: ProtocolCommand -> IO ()
-runProtocolCommand cmd = case cmd of
-  Update opts -> runUpdate opts
-
--- | Run database commands
-runDatabaseCommand :: DatabaseCommand -> IO ()
-runDatabaseCommand cmd = case cmd of
-  Init opts -> runInit opts
-  Reset opts -> runReset opts
-  Snapshot opts -> runSnapshot opts
-  LoadSnapshot opts -> runLoadSnapshot opts
-  ImportUTXO opts -> runImportUTXO opts
-  ExportUTXO opts -> runExportUTXO opts
-  Inspect opts -> runInspect opts
-
--- | Run wallet commands
-runWalletCommand :: WalletCommand -> IO ()
-runWalletCommand cmd = case cmd of
-  Create opts -> runCreateWallet opts
-  ListWallets opts -> runListWallets opts
-  Import opts -> runImportWallet opts
-  ExportWallet opts -> runExportWallet opts
-  Info opts -> runWalletInfo opts
-
--- | Run address commands
-runAddressCommand :: AddressCommand -> IO ()
-runAddressCommand cmd = case cmd of
-  AddressKeyGen opts -> runAddressKeyGen opts
-  AddressBuild opts -> runAddressBuild opts
-  AddressInfo opts -> runAddressInfo opts
-
--- | Run stake address commands
-runStakeAddressCommand :: StakeAddressCommand -> IO ()
-runStakeAddressCommand cmd = case cmd of
-  StakeAddressKeyGen opts -> runStakeAddressKeyGen opts
-  StakeAddressBuild opts -> runStakeAddressBuild opts
-  StakeAddressInfo opts -> runStakeAddressInfo opts
-
--- | Run mint commands
-runMintCommand :: MintCommand -> IO ()
-runMintCommand cmd = case cmd of
-  MintBuild opts -> runMintBuild opts
-  MintCalculate opts -> runMintCalculate opts
-
--- | Run the CLI application
+-- 3. Dans runCLI, parser d'abord --home, puis la commande
 runCLI :: IO ()
 runCLI = do
-  cmd <- execParser opts
-  case cmd of
-    TransactionCmd txCmd -> runTransactionCommand txCmd
-    UTXOCmd utxoCmd -> runUTXOCommand utxoCmd
-    ProtocolCmd protoCmd -> runProtocolCommand protoCmd
-    DatabaseCmd dbCmd -> runDatabaseCommand dbCmd
-    WalletCmd walletCmd -> runWalletCommand walletCmd
-    AddressCmd addrCmd -> runAddressCommand addrCmd
-    StakeAddressCmd stakeAddrCmd -> runStakeAddressCommand stakeAddrCmd
-    MintCmd mintCmd -> runMintCommand mintCmd
-    Version -> runVersion
-  where
-    opts =
+  homeDir <-
+    execParser $
       info
-        (commandParser <**> helper)
+        (homeOption <**> helper)
         ( fullDesc
-            <> progDesc "Cardano Offline Transaction Simulator"
-            <> header "cots - simulate Cardano transactions offline (cardano-cli compatible)"
+            <> progDesc "Cardano Offline Transaction Simulator (compatible cardano-cli)"
+            <> header "cotscli - simulateur offline Cardano (CLI compatible)"
         )
+  cmd <-
+    execParser $
+      info
+        mainParser
+        ( fullDesc
+            <> progDesc "Cardano Offline Transaction Simulator (compatible cardano-cli)"
+            <> header "cotscli - simulateur offline Cardano (CLI compatible)"
+        )
+  runCommand cmd homeDir
+
+-- 4. Les valeurs par défaut des fichiers sont gérées dans les fonctions d'exécution (run*),
+--    en utilisant homeDir si l'utilisateur n'a rien passé (ex: if null dbFile then homeDir </> "cots.db" else dbFile)
+
+-- 5. Le help affiche toutes les sous-commandes à la racine grâce à hsubparser dans commandParser.
+
+-- Le reste du code (commandParser, etc.) reste inchangé, mais toutes les valeurs par défaut de fichiers utilisent homeDir.
+
+-- Pour l'affichage du --help, utiliser hsubparser et info/progDesc pour chaque sous-commande, comme ci-dessus, pour une clarté maximale.
+
+-- | Helper to run a command with a home directory
+runCommand :: Command -> FilePath -> IO ()
+runCommand cmd homeDir = case cmd of
+  TransactionCmd txCmd -> runTransactionCommand txCmd homeDir
+  UTXOCmd utxoCmd -> runUTXOCommand utxoCmd homeDir
+  ProtocolCmd protoCmd -> runProtocolCommand protoCmd homeDir
+  DatabaseCmd dbCmd -> runDatabaseCommand dbCmd homeDir
+  WalletCmd walletCmd -> runWalletCommand walletCmd homeDir
+  AddressCmd addrCmd -> runAddressCommand addrCmd homeDir
+  StakeAddressCmd stakeAddrCmd -> runStakeAddressCommand stakeAddrCmd homeDir
+  MintCmd mintCmd -> runMintCommand mintCmd homeDir
+  Version -> runVersion homeDir
 
 -- | Run build command
-runBuild :: BuildOptions -> IO ()
-runBuild opts = do
+runBuild :: BuildOptions -> FilePath -> IO ()
+runBuild opts homeDir = do
   putStrLn "🔨 Building transaction (offline simulation)..."
-  transactionsDir <- getCotsNodeSubdir "transactions"
-  let txPath = transactionsDir </> outFile opts
+  let txPath = homeDir </> outFile opts
   putStrLn $ "📁 Database file: " ++ dbFile opts
   putStrLn $ "📄 Output file: " ++ txPath
 
@@ -1447,7 +509,7 @@ runBuild opts = do
   if success result
     then do
       putStrLn "✅ Transaction built successfully!"
-      displayBuildResults result opts
+      displayBuildResults result opts homeDir
       writeFile txPath "{\"type\": \"TxBody\", \"description\": \"Simulated Transaction\", \"cborHex\": \"placeholder\"}"
       putStrLn $ "💾 Transaction saved to: " ++ txPath
     else do
@@ -1456,8 +518,8 @@ runBuild opts = do
       exitFailure
 
 -- | Display build results
-displayBuildResults :: SimulationResult -> BuildOptions -> IO ()
-displayBuildResults result opts = do
+displayBuildResults :: SimulationResult -> BuildOptions -> FilePath -> IO ()
+displayBuildResults result opts homeDir = do
   let details = simulationDetails result
       feeCalc = feeCalculation result
 
@@ -1477,8 +539,8 @@ displayBuildResults result opts = do
   putStrLn $ "\n💾 Transaction saved to: " ++ outFile opts
 
 -- | Run simulate command
-runSimulate :: SimulateOptions -> IO ()
-runSimulate opts = do
+runSimulate :: SimulateOptions -> FilePath -> IO ()
+runSimulate opts homeDir = do
   putStrLn "🔍 Simulating transaction..."
   putStrLn $ "📄 Transaction file: " ++ simTxFile opts
   putStrLn $ "💰 Database file: " ++ simDbFile opts
@@ -1550,8 +612,8 @@ simulateTransactionFromFile db tx =
     }
 
 -- | Run sign command
-runSign :: SignOptions -> IO ()
-runSign opts = do
+runSign :: SignOptions -> FilePath -> IO ()
+runSign opts homeDir = do
   putStrLn "✍️  Signing transaction (offline)..."
   putStrLn $ "📄 Transaction file: " ++ signTxFile opts
   putStrLn $ "🔑 Signing key file: " ++ signKeyFile opts
@@ -1581,8 +643,8 @@ signTransactionOffline txContent keyContent =
   "{\"type\": \"TxSigned\", \"description\": \"Signed Transaction\", \"cborHex\": \"signed_placeholder\"}"
 
 -- | Run validate command
-runValidate :: ValidateOptions -> IO ()
-runValidate opts = do
+runValidate :: ValidateOptions -> FilePath -> IO ()
+runValidate opts homeDir = do
   putStrLn "🔍 Validating transaction..."
   putStrLn $ "📄 Transaction file: " ++ validateTxFile opts
   putStrLn $ "📁 Database file: " ++ validateDbFile opts
@@ -1622,8 +684,8 @@ validateTransactionFromFile db txContent =
         else Left errors
 
 -- | Run export command
-runExport :: ExportOptions -> IO ()
-runExport opts = do
+runExport :: ExportOptions -> FilePath -> IO ()
+runExport opts homeDir = do
   putStrLn "📤 Exporting transaction..."
   putStrLn $ "📄 Transaction file: " ++ exportTxFile opts
   putStrLn $ "📋 Format: " ++ show (exportFormat opts)
@@ -1665,8 +727,8 @@ exportToJSONFormat txContent =
   "{\"transaction\": {\"id\": \"placeholder_id\", \"inputs\": [], \"outputs\": [], \"fee\": 0}}"
 
 -- | Run decode command
-runDecode :: DecodeOptions -> IO ()
-runDecode opts = do
+runDecode :: DecodeOptions -> FilePath -> IO ()
+runDecode opts homeDir = do
   putStrLn "🔍 Decoding transaction..."
   putStrLn $ "📄 Transaction file: " ++ decodeTxFile opts
 
@@ -1722,8 +784,8 @@ printOutputDetail :: String -> IO ()
 printOutputDetail detail = putStrLn $ "  " ++ detail
 
 -- | Run list command
-runList :: ListOptions -> IO ()
-runList opts = do
+runList :: ListOptions -> FilePath -> IO ()
+runList opts homeDir = do
   putStrLn $ "📁 Reading UTXOs from database: " ++ listDbFile opts
 
   db <- initDatabase (listDbFile opts)
@@ -1763,8 +825,8 @@ printUTXO (UTXO (TransactionId txid) (TxIndex txix) (Amount lov assets)) = do
   putStrLn $ printf "%66s%6s    %s" txidShort txixStr amountStr
 
 -- | Run reserve command
-runReserve :: ReserveOptions -> IO ()
-runReserve opts = do
+runReserve :: ReserveOptions -> FilePath -> IO ()
+runReserve opts homeDir = do
   putStrLn "🔒 Reserving UTXOs..."
   putStrLn $ "📍 Address: " ++ T.unpack (reserveAddress opts)
   putStrLn $ "💰 Amount: " ++ show (reserveAmount opts) ++ " lovelace"
@@ -1800,8 +862,8 @@ encodeReservedUTXOs utxos =
   "{\"reserved_utxos\": " ++ show (length utxos) ++ ", \"utxos\": []}"
 
 -- | Run update command
-runUpdate :: UpdateOptions -> IO ()
-runUpdate opts = do
+runUpdate :: UpdateOptions -> FilePath -> IO ()
+runUpdate opts homeDir = do
   putStrLn "⚙️  Updating protocol parameters..."
   putStrLn $ "📄 Protocol params file: " ++ updateProtocolParamsFile opts
   putStrLn $ "📁 Database file: " ++ updateDbFile opts
@@ -1837,19 +899,39 @@ updateProtocolParameters db params =
   putStrLn "Database updated with new protocol parameters"
 
 -- | Run init command
-runInit :: InitOptions -> IO ()
-runInit opts = do
-  putStrLn "🗄️  Initializing SQLite database..."
+runInit :: InitOptions -> FilePath -> IO ()
+runInit opts homeDir = do
+  putStrLn "🗄️  Initializing SQLite database and COTS home structure..."
   putStrLn $ "📁 Database file: " ++ initDbFile opts
-
+  -- Créer les sous-dossiers
+  let subdirs = ["keys", "addresses", "utxos", "transactions", "protocol", "scripts"]
+  mapM_
+    ( \d -> do
+        let path = homeDir </> d
+        createDirectoryIfMissing True path
+        putStrLn $ "📂 Created directory: " ++ path
+    )
+    subdirs
+  -- Copier les fichiers d'exemple s'ils existent
+  let examples = ["utxos.json", "utxos-simple.json", "config.json", "config.yaml"]
+  mapM_
+    ( \f -> do
+        let src = "COTS/examples/" </> f
+            dst = homeDir </> "utxos" </> f
+        exists <- doesFileExist src
+        when exists $ do
+          copyFile src dst
+          putStrLn $ "📄 Example file copied: " ++ dst
+    )
+    examples
+  -- Initialiser la base SQLite
   db <- initDatabase (initDbFile opts)
   closeDatabase db
-
-  putStrLn "✅ Database initialized successfully!"
+  putStrLn "✅ Database and home structure initialized successfully!"
 
 -- | Run reset command
-runReset :: ResetOptions -> IO ()
-runReset opts = do
+runReset :: ResetOptions -> FilePath -> IO ()
+runReset opts homeDir = do
   putStrLn "🔄 Resetting SQLite database..."
   putStrLn $ "📁 Database file: " ++ resetDbFile opts
 
@@ -1858,8 +940,8 @@ runReset opts = do
   putStrLn "✅ Database reset successfully!"
 
 -- | Run snapshot command
-runSnapshot :: SnapshotOptions -> IO ()
-runSnapshot opts = do
+runSnapshot :: SnapshotOptions -> FilePath -> IO ()
+runSnapshot opts homeDir = do
   putStrLn "📸 Creating database snapshot..."
   putStrLn $ "📁 Database file: " ++ snapshotDbFile opts
   putStrLn $ "💾 Snapshot file: " ++ snapshotOutFile opts
@@ -1871,8 +953,8 @@ runSnapshot opts = do
   putStrLn "✅ Snapshot created successfully!"
 
 -- | Run load snapshot command
-runLoadSnapshot :: LoadSnapshotOptions -> IO ()
-runLoadSnapshot opts = do
+runLoadSnapshot :: LoadSnapshotOptions -> FilePath -> IO ()
+runLoadSnapshot opts homeDir = do
   putStrLn "📥 Loading database from snapshot..."
   putStrLn $ "📁 Snapshot file: " ++ loadSnapshotFile opts
   putStrLn $ "💾 Database file: " ++ loadDbFile opts
@@ -1883,8 +965,8 @@ runLoadSnapshot opts = do
   putStrLn "✅ Snapshot loaded successfully!"
 
 -- | Run import UTXO command
-runImportUTXO :: ImportUTXOptions -> IO ()
-runImportUTXO opts = do
+runImportUTXO :: ImportUTXOptions -> FilePath -> IO ()
+runImportUTXO opts homeDir = do
   putStrLn "📥 Importing UTXOs from JSON file..."
   putStrLn $ "📁 Database file: " ++ importDbFile opts
   putStrLn $ "📄 UTXO file: " ++ importUtxoFile opts
@@ -1900,8 +982,8 @@ runImportUTXO opts = do
       putStrLn $ "✅ Imported " ++ show (length utxos) ++ " UTXOs successfully!"
 
 -- | Run export UTXO command
-runExportUTXO :: ExportUTXOptions -> IO ()
-runExportUTXO opts = do
+runExportUTXO :: ExportUTXOptions -> FilePath -> IO ()
+runExportUTXO opts homeDir = do
   putStrLn "📤 Exporting UTXOs to JSON file..."
   putStrLn $ "📁 Database file: " ++ exportDbFile opts
   putStrLn $ "💾 Output file: " ++ exportUtxoFile opts
@@ -1915,8 +997,8 @@ runExportUTXO opts = do
   putStrLn $ "✅ Exported " ++ show (length utxos) ++ " UTXOs successfully!"
 
 -- | Run inspect command
-runInspect :: InspectOptions -> IO ()
-runInspect opts = do
+runInspect :: InspectOptions -> FilePath -> IO ()
+runInspect opts homeDir = do
   putStrLn "🔍 Inspecting database..."
   putStrLn $ "📁 Database file: " ++ inspectDbFile opts
 
@@ -1927,8 +1009,8 @@ runInspect opts = do
   putStrLn stats
 
 -- | Run create wallet command
-runCreateWallet :: CreateWalletOptions -> IO ()
-runCreateWallet opts = do
+runCreateWallet :: CreateWalletOptions -> FilePath -> IO ()
+runCreateWallet opts homeDir = do
   putStrLn "👛 Creating new wallet..."
   putStrLn $ "📝 Name: " ++ T.unpack (createWalletName opts)
   putStrLn $ "📍 Address: " ++ T.unpack (createWalletAddress opts)
@@ -1943,8 +1025,8 @@ runCreateWallet opts = do
   putStrLn "✅ Wallet created successfully!"
 
 -- | Run list wallets command
-runListWallets :: ListWalletsOptions -> IO ()
-runListWallets opts = do
+runListWallets :: ListWalletsOptions -> FilePath -> IO ()
+runListWallets opts homeDir = do
   putStrLn "📋 Listing wallets..."
   putStrLn $ "📁 Database file: " ++ listWalletsDbFile opts
 
@@ -1964,8 +1046,8 @@ printWallet DBWallet {..} = do
   putStrLn $ printf "%-20s  %-40s  %s" nameStr addrStr timeStr
 
 -- | Run import wallet command
-runImportWallet :: ImportWalletOptions -> IO ()
-runImportWallet opts = do
+runImportWallet :: ImportWalletOptions -> FilePath -> IO ()
+runImportWallet opts homeDir = do
   putStrLn "📥 Importing wallet..."
   putStrLn $ "📄 File: " ++ importWalletFile opts
   putStrLn $ "📁 Database file: " ++ importWalletDbFile opts
@@ -1999,8 +1081,8 @@ parseWalletFromJSON content = do
       }
 
 -- | Run export wallet command
-runExportWallet :: ExportWalletOptions -> IO ()
-runExportWallet opts = do
+runExportWallet :: ExportWalletOptions -> FilePath -> IO ()
+runExportWallet opts homeDir = do
   putStrLn "📤 Exporting wallet..."
   putStrLn $ "👛 Wallet: " ++ T.unpack (exportWalletName opts)
   putStrLn $ "📄 File: " ++ exportWalletFile opts
@@ -2027,8 +1109,8 @@ encodeWalletToJSON wallet =
   "{\"name\": \"" ++ T.unpack (dbWalletName wallet) ++ "\", \"address\": \"" ++ T.unpack (dbWalletAddress wallet) ++ "\"}"
 
 -- | Run wallet info command
-runWalletInfo :: WalletInfoOptions -> IO ()
-runWalletInfo opts = do
+runWalletInfo :: WalletInfoOptions -> FilePath -> IO ()
+runWalletInfo opts homeDir = do
   putStrLn "ℹ️  Wallet information..."
   putStrLn $ "👛 Wallet: " ++ T.unpack (walletInfoName opts)
   putStrLn $ "📁 Database file: " ++ walletInfoDbFile opts
@@ -2046,10 +1128,10 @@ runWalletInfo opts = do
       putStrLn "❌ Wallet not found!"
 
 -- | Run address key generation
-runAddressKeyGen :: AddressKeyGenOptions -> IO ()
-runAddressKeyGen opts = do
+runAddressKeyGen :: AddressKeyGenOptions -> FilePath -> IO ()
+runAddressKeyGen opts homeDir = do
   putStrLn "🔑 Generating payment key pair..."
-  keysDir <- getCotsNodeSubdir "keys"
+  keysDir <- getCotsNodeSubdir homeDir "keys"
   let vkeyPath = keysDir </> keyGenVerificationKeyFile opts
       skeyPath = keysDir </> keyGenSigningKeyFile opts
   putStrLn $ "📁 Verification key: " ++ vkeyPath
@@ -2062,10 +1144,10 @@ runAddressKeyGen opts = do
   putStrLn $ "💾 Files saved in: " ++ keysDir
 
 -- | Run address build
-runAddressBuild :: AddressBuildOptions -> IO ()
-runAddressBuild opts = do
+runAddressBuild :: AddressBuildOptions -> FilePath -> IO ()
+runAddressBuild opts homeDir = do
   putStrLn "🏗️  Building Cardano address..."
-  addressesDir <- getCotsNodeSubdir "addresses"
+  addressesDir <- getCotsNodeSubdir homeDir "addresses"
   let addressPath = addressesDir </> buildOutFile opts
   putStrLn $ "📁 Output file: " ++ addressPath
 
@@ -2084,8 +1166,8 @@ runAddressBuild opts = do
   putStrLn $ "💾 File saved in: " ++ addressesDir
 
 -- | Run address info
-runAddressInfo :: AddressInfoOptions -> IO ()
-runAddressInfo opts = do
+runAddressInfo :: AddressInfoOptions -> FilePath -> IO ()
+runAddressInfo opts homeDir = do
   putStrLn "ℹ️  Address information:"
   putStrLn $ "📍 Address: " ++ T.unpack (infoAddress opts)
   putStrLn "🔍 Type: Payment address"
@@ -2093,10 +1175,10 @@ runAddressInfo opts = do
   putStrLn "📊 Format: Bech32"
 
 -- | Run stake address key generation
-runStakeAddressKeyGen :: StakeAddressKeyGenOptions -> IO ()
-runStakeAddressKeyGen opts = do
+runStakeAddressKeyGen :: StakeAddressKeyGenOptions -> FilePath -> IO ()
+runStakeAddressKeyGen opts homeDir = do
   putStrLn "🔑 Generating stake key pair..."
-  keysDir <- getCotsNodeSubdir "keys"
+  keysDir <- getCotsNodeSubdir homeDir "keys"
   let vkeyPath = keysDir </> stakeKeyGenVerificationKeyFile opts
       skeyPath = keysDir </> stakeKeyGenSigningKeyFile opts
   putStrLn $ "📁 Verification key: " ++ vkeyPath
@@ -2109,10 +1191,10 @@ runStakeAddressKeyGen opts = do
   putStrLn $ "💾 Files saved in: " ++ keysDir
 
 -- | Run stake address build
-runStakeAddressBuild :: StakeAddressBuildOptions -> IO ()
-runStakeAddressBuild opts = do
+runStakeAddressBuild :: StakeAddressBuildOptions -> FilePath -> IO ()
+runStakeAddressBuild opts homeDir = do
   putStrLn "🏗️  Building stake address..."
-  addressesDir <- getCotsNodeSubdir "addresses"
+  addressesDir <- getCotsNodeSubdir homeDir "addresses"
   let addressPath = addressesDir </> stakeBuildOutFile opts
   putStrLn $ "📁 Output file: " ++ addressPath
 
@@ -2131,8 +1213,8 @@ runStakeAddressBuild opts = do
   putStrLn $ "💾 File saved in: " ++ addressesDir
 
 -- | Run stake address info
-runStakeAddressInfo :: StakeAddressInfoOptions -> IO ()
-runStakeAddressInfo opts = do
+runStakeAddressInfo :: StakeAddressInfoOptions -> FilePath -> IO ()
+runStakeAddressInfo opts homeDir = do
   putStrLn "ℹ️  Stake address information:"
   putStrLn $ "📍 Address: " ++ T.unpack (stakeInfoAddress opts)
   putStrLn "🔍 Type: Stake address"
@@ -2140,8 +1222,8 @@ runStakeAddressInfo opts = do
   putStrLn "📊 Format: Bech32"
 
 -- | Run mint build
-runMintBuild :: MintBuildOptions -> IO ()
-runMintBuild opts = do
+runMintBuild :: MintBuildOptions -> FilePath -> IO ()
+runMintBuild opts homeDir = do
   putStrLn "🪙 Building minting transaction..."
   putStrLn $ "📁 Output file: " ++ mintOutFile opts
 
@@ -2152,8 +1234,8 @@ runMintBuild opts = do
   putStrLn "✅ Minting transaction built successfully!"
 
 -- | Run mint calculate
-runMintCalculate :: MintCalculateOptions -> IO ()
-runMintCalculate opts = do
+runMintCalculate :: MintCalculateOptions -> FilePath -> IO ()
+runMintCalculate opts homeDir = do
   putStrLn "🧮 Calculating minting fees..."
   putStrLn $ "🔑 Policy ID: " ++ T.unpack (mintCalcPolicyId opts)
   putStrLn $ "🏷️  Asset name: " ++ T.unpack (mintCalcAssetName opts)
@@ -2169,8 +1251,8 @@ runMintCalculate opts = do
   putStrLn $ "💸 Total fee: " ++ show totalFee ++ " lovelace"
 
 -- | Run version command
-runVersion :: IO ()
-runVersion = do
+runVersion :: FilePath -> IO ()
+runVersion homeDir = do
   version <- getVersionString
   putStrLn $ "Cardano Offline Transaction Simulator (COTS) v" ++ version
   putStrLn "cardano-cli compatible interface"

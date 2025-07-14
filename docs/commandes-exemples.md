@@ -1,5 +1,18 @@
 # 🏁 Exemples de commandes COTS CLI — Workflow complet
 
+## Dossier de travail et option --home
+
+Par défaut, tous les fichiers (db, utxos, clés, etc.) sont stockés dans `~/.COTS_NODE`.
+Vous pouvez changer ce dossier avec l’option globale `--home` :
+
+```bash
+cotscli --home /chemin/vers/mon_cots_home database init
+```
+
+Toutes les commandes suivantes utiliseront ce dossier comme racine.
+
+---
+
 ## 1. Initialiser la base de données SQLite
 
 ```bash

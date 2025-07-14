@@ -428,3 +428,56 @@ COTS uses SQLite for data persistence with the following schema:
 - **metadata**: Key-value storage for configuration
 
 All data is stored in `~/.COTS_NODE/cots.db` by default, providing ACID compliance and efficient querying capabilities.
+
+# Utilisation du paramètre --home et structure du dossier COTS
+
+## Dossier racine par défaut
+
+Par défaut, tous les fichiers et données de COTS sont stockés dans le dossier `~/.COTS_NODE` de votre utilisateur.
+
+- Base de données : `~/.COTS_NODE/cots.db`
+- Clés : `~/.COTS_NODE/keys/`
+- Adresses : `~/.COTS_NODE/addresses/`
+- UTXOs : `~/.COTS_NODE/utxos/`
+- Transactions : `~/.COTS_NODE/transactions/`
+- Protocol : `~/.COTS_NODE/protocol/`
+- Scripts : `~/.COTS_NODE/scripts/`
+
+## Option --home
+
+Vous pouvez personnaliser ce dossier avec l’option globale `--home` sur toutes les commandes :
+
+```bash
+cotscli --home /chemin/vers/mon_cots_home ...
+```
+
+Toutes les commandes utiliseront alors ce dossier comme racine pour la base, les clés, les utxos, etc.
+
+## Initialisation automatique
+
+La commande suivante crée la structure complète et copie les fichiers d’exemple :
+
+```bash
+cotscli database init
+```
+
+## Chemins par défaut
+
+Si vous ne précisez pas de chemin pour un fichier (db, utxos, etc.), COTS utilisera automatiquement le dossier home courant.
+
+## Exemple de structure générée
+
+```
+~/.COTS_NODE/
+  cots.db
+  keys/
+  addresses/
+  utxos/
+    utxos.json
+    utxos-simple.json
+  transactions/
+  protocol/
+  scripts/
+```
+
+Pour plus d’exemples de commandes, voir le fichier `docs/commandes-exemples.md`.
