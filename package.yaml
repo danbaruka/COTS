@@ -36,6 +36,7 @@ dependencies:
   - vector
   - sqlite-simple
   - yaml
+  - base16-bytestring
 
 ghc-options:
   - -Wall
