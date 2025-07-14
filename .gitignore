@@ -1,7 +1,5 @@
 # Haskell
-dist/
-dist-*/
-cabal-dev/
+# Build artifacts
 *.o
 *.hi
 *.hie
@@ -17,59 +15,77 @@ cabal.sandbox.config
 *.aux
 *.hp
 *.eventlog
-
-# Stack
-.stack-work/
-stack.yaml.lock
-
-# IDE
-.vscode/
-.idea/
+*.exe
+*.bin
+*.bak
+*.sqlite3
+*.addr
+*.db
+*.log
+*.tmp
+*.temp
 *.swp
 *.swo
 *~
+
+# Stack and Cabal
+.stack-work/
+dist/
+dist-*/
+dist-newstyle/
+stack.yaml.lock
+
+# IDE/editor
+.vscode/
+.idea/
+*.code-workspace
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Build artifacts
-*.exe
-*.bin
-cots-exe
+# Documentation
+/docs/_build/
 
 # Test artifacts
-test-results/
-coverage/
-
-# Documentation
-docs/_build/
-
-# Temporary files
-*.tmp
-*.temp 
-
-# Ignore build artifacts and temporary files
-*.db
-*.log
-*.bak
-*.addr
-*.sqlite3
-
-# Stack and Cabal build directories
-.stack-work/
-dist-newstyle/
+/test-results/
+/coverage/
+/test_address.addr
+/exported_utxos.json
+/final_utxos.json
+/build-warnings.txt
+/test-all-commands*.log
 
 # COTS runtime and test data
-test_address.addr
-exported_utxos.json
-final_utxos.json
-build-warnings.txt
-test-all-commands*.log
-COTS_NODE/
+/COTS_NODE/
+/cots.db
+/dev.db
+/test.db
+/test_utxos.json
+/utxos.json
+/utxos-simple.json
+/exported_utxos.json
+/test_config.json
 
-# VSCode and editor files
-.vscode/
-*.swp
+# Misc
+*.old
+*.orig
+*.rej
+
+# Ignore backup and temp files
 *~
-.DS_Store 
+*.tmp
+*.temp
+*.bak
+
+# Ignore byproducts of documentation or build
+*.aux
+*.out
+*.toc
+*.snm
+*.nav
+*.vrb
+*.fdb_latexmk
+*.fls
+
+# Ignore any other local or user-specific files 

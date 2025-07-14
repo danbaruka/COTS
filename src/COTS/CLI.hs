@@ -656,7 +656,6 @@ runSimulate opts homeDir = do
   if success result
     then do
       putStrLn "✅ Transaction simulation completed!"
-
       when (simVerbose opts) $ do
         putStrLn "\n📊 Detailed simulation results:"
         putStrLn "=============================="
