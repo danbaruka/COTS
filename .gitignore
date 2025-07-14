@@ -89,3 +89,7 @@ Thumbs.db
 *.fls
 
 # Ignore any other local or user-specific files 
+
+# Ignore Cardano/COTS generated files
+mint.raw
+wallet.json 
