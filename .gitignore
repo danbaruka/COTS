@@ -48,3 +48,28 @@ docs/_build/
 # Temporary files
 *.tmp
 *.temp 
+
+# Ignore build artifacts and temporary files
+*.db
+*.log
+*.bak
+*.addr
+*.sqlite3
+
+# Stack and Cabal build directories
+.stack-work/
+dist-newstyle/
+
+# COTS runtime and test data
+test_address.addr
+exported_utxos.json
+final_utxos.json
+build-warnings.txt
+test-all-commands*.log
+COTS_NODE/
+
+# VSCode and editor files
+.vscode/
+*.swp
+*~
+.DS_Store 

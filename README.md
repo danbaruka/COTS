@@ -1,6 +1,6 @@
 # Cardano Offline Transaction Simulator (COTS)
 
-COTS est un outil CLI pour simuler des transactions Cardano hors-ligne, calculer les frais, gérer les UTXOs, et exporter les transactions au format Cardano CLI ou Koios API.
+COTS is a CLI tool for simulating Cardano transactions offline, calculating fees, managing UTXOs, and exporting transactions in Cardano CLI or Koios API formats.
 
 ## Installation
 
@@ -8,74 +8,74 @@ COTS est un outil CLI pour simuler des transactions Cardano hors-ligne, calculer
 stack build
 ```
 
-## Utilisation de base
+## Basic Usage
 
-### Simuler une transaction
-
-```bash
-cotscli simulate -c examples/config.json -f alice -t <adresse_dest> -a 100000000 -v
-```
-
-### Exporter une transaction
+### Simulate a Transaction
 
 ```bash
-cotscli simulate -c examples/config.json -f alice -t <adresse_dest> -a 100000000 --export-cardano-cli
-cotscli simulate -c examples/config.json -f alice -t <adresse_dest> -a 100000000 --export-koios
+cotscli simulate -c examples/config.json -f alice -t <destination_address> -a 100000000 -v
 ```
 
-### Valider une configuration ou une transaction
+### Export a Transaction
+
+```bash
+cotscli simulate -c examples/config.json -f alice -t <destination_address> -a 100000000 --export-cardano-cli
+cotscli simulate -c examples/config.json -f alice -t <destination_address> -a 100000000 --export-koios
+```
+
+### Validate a Configuration or Transaction
 
 ```bash
 cotscli validate -c examples/config.json
 ```
 
-### Simuler un script Plutus
+### Simulate a Plutus Script
 
 ```bash
-cotscli simulate -c examples/config.json -f alice -t <adresse_dest> -a 100000000 --script plutus.plutus --datum datum.json --redeemer redeemer.json
+cotscli simulate -c examples/config.json -f alice -t <destination_address> -a 100000000 --script plutus.plutus --datum datum.json --redeemer redeemer.json
 ```
 
-## Exemples de fichiers de configuration
+## Example Configuration Files
 
-Voir `examples/config.json` et `examples/config.yaml` pour la structure attendue.
+See `examples/config.json` and `examples/config.yaml` for the expected structure.
 
-## Commandes disponibles
+## Available Commands
 
-- `simulate` : Simuler une transaction Cardano
-- `validate` : Valider une configuration ou une transaction
-- `export` : Exporter une transaction (Cardano CLI, Koios)
-- `update-protocol` : Mettre à jour les paramètres de protocole
-- `version` : Afficher la version
+- `simulate`: Simulate a Cardano transaction
+- `validate`: Validate a configuration or transaction
+- `export`: Export a transaction (Cardano CLI, Koios)
+- `update-protocol`: Update protocol parameters
+- `version`: Show version
 
-## Options principales
+## Main Options
 
-- `-c, --config FILE` : Fichier de configuration (JSON ou YAML)
-- `-f, --from WALLET` : Nom du wallet source
-- `-t, --to ADDRESS` : Adresse de destination
-- `-a, --amount` : Montant en lovelace
-- `-s, --script` : Fichier script Plutus
-- `--datum` : Fichier datum JSON
-- `--redeemer` : Fichier redeemer JSON
-- `--export-cardano-cli` : Exporter au format Cardano CLI
-- `--export-koios` : Exporter au format Koios API
-- `-o, --output` : Fichier de sortie
-- `-v, --verbose` : Affichage détaillé
+- `-c, --config FILE`: Configuration file (JSON or YAML)
+- `-f, --from WALLET`: Source wallet name
+- `-t, --to ADDRESS`: Destination address
+- `-a, --amount`: Amount in lovelace
+- `-s, --script`: Plutus script file
+- `--datum`: Datum JSON file
+- `--redeemer`: Redeemer JSON file
+- `--export-cardano-cli`: Export in Cardano CLI format
+- `--export-koios`: Export in Koios API format
+- `-o, --output`: Output file
+- `-v, --verbose`: Verbose output
 
-## Tests
+## Testing
 
-Pour lancer les tests unitaires et d'intégration :
+To run unit and integration tests:
 
 ```bash
 stack test
 ```
 
-## Licence
+## License
 
 MIT
 
-## 🎮 Commandes cardano-cli compatibles
+## 🎮 Cardano-CLI Compatible Commands
 
-COTS implémente les mêmes commandes que `cardano-cli` pour une expérience familière :
+COTS implements the same commands as `cardano-cli` for a familiar experience:
 
 ### Transaction Commands
 
@@ -154,229 +154,106 @@ cotscli protocol update --protocol-params-file params.json --out-file updated.js
 
 ## 🗄️ Database Management (SQLite)
 
-COTS utilise SQLite pour gérer l'état UTxO de manière persistante et robuste. Cela permet de :
+COTS uses SQLite to manage the UTxO state persistently and robustly. This allows:
 
-- **Persistance entre sessions** : Garder trace des UTxOs, balances, paramètres protocole
-- **Simulation précise** : Mimer l'évolution d'état d'un vrai nœud Cardano
-- **Contrôle développeur** : Snapshots, imports/exports, reset
-- **Portabilité** : Base de données unique, facile à versionner et déboguer
+- **Persistence between sessions**: Track UTxOs, balances, protocol parameters
+- **Accurate simulation**: Mimic the state evolution of a real Cardano node
+- **Developer control**: Snapshots, imports/exports, reset
+- **Portability**: Single database file, easy to version and debug
 
-### Commandes de base de données
+### Database Commands
 
 ```bash
-# Initialiser une nouvelle base de données
+# Initialize a new database
 cotscli database init --db-file cots.db
 
-# Réinitialiser la base (supprime toutes les tables)
+# Reset the database (deletes all tables)
 cotscli database reset --db-file cots.db
 
-# Créer un snapshot de l'état actuel
+# Create a snapshot of the current state
 cotscli database snapshot --db-file cots.db --out-file snapshot.db
 
-# Charger un snapshot
+# Load a snapshot
 cotscli database load-snapshot --snapshot-file snapshot.db --db-file cots.db
 
-# Importer des UTxOs depuis un fichier JSON
+# Import UTxOs from a JSON file
 cotscli database import-utxo --db-file cots.db --utxo-file utxos.json
 
-# Exporter les UTxOs vers un fichier JSON
+# Export UTxOs to a JSON file
 cotscli database export-utxo --db-file cots.db --out-file exported_utxos.json
 
-# Inspecter les statistiques de la base
+# Inspect database statistics
 cotscli database inspect --db-file cots.db
 ```
 
-### Structure de la base de données
+### Database Structure
 
-La base SQLite contient les tables suivantes :
+The SQLite database contains the following tables:
 
-- **`utxos`** : État actuel des UTxOs par adresse
-- **`tx_history`** : Historique des transactions simulées
-- **`wallets`** : Adresses et métadonnées des wallets
-- **`protocol_params`** : Paramètres protocole utilisés
-- **`script_logs`** : Résultats d'exécution des scripts Plutus
-- **`assets`** : Métadonnées des tokens/tokens suivis
+- **`utxos`**: Current UTxO state by address
+- **`tx_history`**: Simulated transaction history
+- **`wallets`**: Wallet addresses and metadata
+- **`protocol_params`**: Protocol parameters in use
+- **`script_logs`**: Plutus script execution results
+- **`assets`**: Token/asset metadata
 
-### Workflow recommandé
+### Recommended Workflow
 
-1. **Initialiser** : `cotscli database init`
-2. **Importer des UTxOs** : `cotscli database import-utxo --utxo-file initial_utxos.json`
-3. **Simuler des transactions** : Les UTxOs sont automatiquement mis à jour
-4. **Créer des snapshots** : `cotscli database snapshot` pour sauvegarder l'état
-5. **Exporter les résultats** : `cotscli database export-utxo` pour partager
+1. **Initialize**: `cotscli database init`
+2. **Import UTxOs**: `cotscli database import-utxo --utxo-file initial_utxos.json`
+3. **Simulate transactions**: UTxOs are automatically updated
+4. **Create snapshots**: `cotscli database snapshot` to save state
+5. **Export results**: `cotscli database export-utxo` to share
 
-### Avantages vs JSON
+### Advantages vs JSON
 
-| Fonctionnalité        | SQLite                        | JSON                          |
-| --------------------- | ----------------------------- | ----------------------------- |
-| Intégrité des données | ✅ ACID-safe                  | ❌ Corruption possible        |
-| Performance           | ✅ Lectures/écritures rapides | ❌ Plus lent avec gros état   |
-| Requêtes avancées     | ✅ SQL complet                | ❌ Chargement/filtrage manuel |
-| Multi-tables          | ✅ Facile                     | ❌ Nesting manuel             |
-| Portabilité           | ✅ Fichier unique             | ✅ Fichier unique             |
+| Feature             | SQLite             | JSON                        |
+| ------------------- | ------------------ | --------------------------- |
+| Data integrity      | ✅ ACID-safe       | ❌ Possible corruption      |
+| Performance         | ✅ Fast read/write | ❌ Slower with large state  |
+| Advanced queries    | ✅ Full SQL        | ❌ Manual loading/filtering |
+| Multi-table support | ✅ Easy            | ❌ Manual nesting           |
+| Portability         | ✅ Single file     | ✅ Single file              |
 
 ---
 
-## 🆕 Nouvelles fonctionnalités
+## 🆕 New Features
 
-### 🔧 Fee Calculator amélioré
+### 🔧 Improved Fee Calculator
 
-- Calcul précis des frais selon les règles Cardano
-- Validation min-UTxO automatique
-- Support multi-assets
-- Calcul des frais de script Plutus
+- Accurate fee calculation according to Cardano rules
+- Automatic min-UTxO validation
+- Multi-asset support
+- Plutus script fee calculation
 
 ### 🪙 Minting & Burning
 
-- Simulation complète du minting de tokens natifs
-- Support des politiques de minting (native et Plutus)
-- Validation des métadonnées d'assets
-- Calcul des frais de minting
+- Full simulation of native token minting
+- Support for minting policies (native and Plutus)
+- Asset metadata validation
+- Minting fee calculation
 
 ### 🔑 HD Wallet (CIP-1852)
 
-- Dérivation d'adresses selon CIP-1852
-- Rotation automatique des adresses de change
-- Support des phrases mnémoniques BIP-39
-- Gestion des clés de paiement et de staking
+- Address derivation according to CIP-1852
+- Automatic change address rotation
+- BIP-39 mnemonic phrase support
+- Payment and staking key management
 
-### 📊 Snapshots avancés
+### 📊 Advanced Snapshots
 
-- Branchement d'états pour les expériences
-- Différenciation entre snapshots
-- Gestion des versions d'état
-- Export/import de configurations complètes
+- Branching states for experiments
+- Differentiation between snapshots
+- State version management
+- Full configuration export/import
 
-## 🚀 Workflow de développement
+## 🚀 Development Workflow
 
-### 1. Setup initial
-
-```bash
-# Initialiser la base de données
-cotscli database init --db-file dev.db
-
-# Générer les clés
-cotscli address key-gen --verification-key-file payment.vkey --signing-key-file payment.skey
-cotscli stake-address key-gen --verification-key-file stake.vkey --signing-key-file stake.skey
-
-# Construire les adresses
-cotscli address build --payment-verification-key-file payment.vkey --stake-verification-key-file stake.vkey --out-file address.addr
-cotscli stake-address build --stake-verification-key-file stake.vkey --out-file stake.addr
-```
-
-### 2. Import état initial
-
-```bash
-# Importer les UTxOs de départ
-cotscli database import-utxo --db-file dev.db --utxo-file initial_utxos.json
-
-# Créer un snapshot de l'état initial
-cotscli database snapshot --db-file dev.db --out-file initial_state.db
-```
-
-### 3. Développement et tests
-
-```bash
-# Simuler des transactions
-cotscli transaction build --tx-in <input> --tx-out <output> --out-file tx.raw
-cotscli transaction simulate --tx-file tx.raw
-
-# Tester le minting
-cotscli mint build --tx-in <input> --mint "1000 <policy>.<asset>" --out-file mint.raw
-cotscli mint calculate --policy-id <policy> --asset-name <asset> --quantity 1000
-
-# Créer des snapshots intermédiaires
-cotscli database snapshot --db-file dev.db --out-file step1.db
-```
-
-### 4. Validation et export
-
-```bash
-# Inspecter l'état final
-cotscli database inspect --db-file dev.db
-
-# Exporter les résultats
-cotscli database export-utxo --db-file dev.db --out-file final_utxos.json
-cotscli transaction export --tx-file final.signed --out-file final.json
-```
-
-## 🎯 Avantages vs cardano-cli
-
-| Fonctionnalité    | cardano-cli                 | COTS                            |
-| ----------------- | --------------------------- | ------------------------------- |
-| **Mode offline**  | ❌ Nécessite un nœud        | ✅ Complètement offline         |
-| **Simulation**    | ❌ Pas de simulation        | ✅ Simulation complète          |
-| **Snapshots**     | ❌ Pas de gestion d'état    | ✅ Snapshots et rollback        |
-| **Développement** | ❌ Difficile pour les tests | ✅ Environnement contrôlé       |
-| **Performance**   | ❌ Lent avec gros volumes   | ✅ Rapide et optimisé           |
-| **Débogage**      | ❌ Logs limités             | ✅ Logs détaillés et inspection |
-
-## 🔮 Roadmap
-
-### Phase 1 - MVP (✅ Complété)
-
-- [x] Commandes cardano-cli compatibles
-- [x] Base de données SQLite
-- [x] Fee calculator précis
-- [x] Minting simulation
-- [x] HD wallet support
-
-### Phase 2 - Developer Delight
-
-- [ ] Plugin system
-- [ ] Unit-test harness
-- [ ] Typed client library (TypeScript)
-- [ ] Epoch clock + slot math
-- [ ] Reservation API avec TTL
-
-### Phase 3 - Stretch Goals
-
-- [ ] Ogmios live replay
-- [ ] Prometheus metrics
-- [ ] gRest stub server
-- [ ] Property-based tests
-- [ ] Single binary distribution
+1. Fork or clone the repository
+2. Build with `stack build`
+3. Run tests with `stack test`
+4. Use the CLI as described above
 
 ---
 
-## 🚀 Release & Versioning (Automatique)
-
-Ce projet utilise [release-please](https://github.com/googleapis/release-please) pour automatiser :
-
-- L’incrémentation de version dans le fichier `.cabal`
-- La génération du changelog
-- La création de tags et de releases GitHub
-
-### Convention de commit
-
-Pour déclencher une release automatiquement, utilise des messages de commit conventionnels :
-
-- `feat: nouvelle fonctionnalité`
-- `fix: correction de bug`
-- `chore: tâches diverses`
-- `docs: documentation`
-
-Exemple :
-
-```sh
-git commit -m "feat: prise en charge des tokens multi-assets"
-```
-
-### Déclencher une release
-
-1. Pousse tes commits sur la branche `main` :
-   ```sh
-   git push origin main
-   ```
-2. Le workflow GitHub Actions s’exécutera automatiquement :
-   - Il mettra à jour la version dans le `.cabal` et le `CHANGELOG.md`
-   - Il créera un tag et une release GitHub
-
-### Voir les releases
-
-- Rendez-vous dans l’onglet [Releases](https://github.com/danbaruka/COTS/releases) du repo GitHub.
-- Le changelog et les artefacts sont générés automatiquement.
-
----
-
-Pour toute question sur le versioning ou l’automatisation, voir `.github/workflows/release-please.yml` ou demande-moi !
+For more details, see the documentation in the `docs/` folder and example configs in `examples/`.

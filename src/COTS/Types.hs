@@ -46,11 +46,17 @@ module COTS.Types
 where
 
 import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
+import qualified Data.Aeson as Aeson
 import Data.Char (toLower)
-import qualified Data.Map.Strict as Map
 import Data.Text (Text)
+import qualified Data.Vector as V
 import Data.Word (Word64)
 import GHC.Generics (Generic)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.Text as T
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Key as Key
 
 -- | Network type for Cardano
 data Network
@@ -118,11 +124,24 @@ instance ToJSONKey Asset
 -- | Amount with lovelace and optional assets
 data Amount = Amount
   { lovelace :: Word64,
-    assets :: Map.Map Asset Word64
+    assets :: Map Asset Word64
   }
   deriving (Eq, Show, Generic)
 
-instance FromJSON Amount
+instance FromJSON Amount where
+  parseJSON = Aeson.withObject "Amount" $ \v -> do
+    lovelace <- v Aeson..: "lovelace"
+    assetsVal <- v Aeson..: "assets"
+    assets <- case assetsVal of
+      Aeson.Object o -> pure $ Map.fromList [(Asset (T.pack (Key.toString k)), n) | (k, Aeson.Number n') <- KeyMap.toList o, let n = round n']
+      Aeson.Array arr -> fmap Map.fromList $ mapM parseAsset (V.toList arr)
+      _ -> fail "assets must be an object or array"
+    return $ Amount lovelace assets
+    where
+      parseAsset = Aeson.withObject "Asset" $ \o -> do
+        assetId <- o Aeson..: "assetId"
+        quantity <- o Aeson..: "quantity"
+        return (Asset assetId, quantity)
 
 instance ToJSON Amount
 
@@ -337,7 +356,7 @@ data SimulationResult = SimulationResult
     transaction :: Maybe Transaction,
     feeCalculation :: FeeCalculation,
     errors :: [SimulationError],
-    finalUTXOs :: Map.Map Text [UTXO], -- wallet name -> UTXOs
+    finalUTXOs :: Map Text [UTXO], -- wallet name -> UTXOs
     executionUnits :: Maybe ExecutionUnits,
     simulationDetails :: SimulationDetails
   }
@@ -384,7 +403,7 @@ instance ToJSON CardanoCLIExport
 data KoiosExport = KoiosExport
   { endpoint :: Text,
     method :: Text,
-    headers :: Map.Map Text Text,
+    headers :: Map Text Text,
     body :: Text
   }
   deriving (Eq, Show, Generic)

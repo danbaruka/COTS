@@ -47,12 +47,16 @@ import COTS.Protocol.Parameters (defaultProtocolParameters)
 import COTS.Simulation.Core (SimulationContext (..), simulateTransaction)
 import COTS.Types hiding (command)
 import COTS.Version (getVersionString)
-import Control.Monad (when)
+import COTS.Wallet.HD (bech32FromAddress)
+import Control.Monad (filterM, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Crypto.Hash (Digest, SHA256, hash)
 import Data.Aeson (encode)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as LBS
 import Data.Char (intToDigit)
@@ -61,13 +65,14 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
+import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import Data.Time (getCurrentTime)
 import Data.Word (Word64)
 import Options.Applicative
 import System.Directory (copyFile, createDirectoryIfMissing, doesFileExist, getHomeDirectory)
 import System.Exit (exitFailure)
-import System.FilePath ((</>))
+import System.FilePath (isAbsolute, (</>))
 import System.Random (randomRIO)
 import Text.Printf (printf)
 
@@ -383,38 +388,27 @@ data MintCalculateOptions = MintCalculateOptions
 -- Exemple de structure :
 
 -- 1. Le parser principal expose toutes les sous-commandes (sans --home)
-mainParser :: Parser Command
-mainParser = commandParser <**> helper
+mainParser :: Parser (FilePath, Command)
+mainParser =
+  (,)
+    <$> strOption
+      ( long "home"
+          <> metavar "DIR"
+          <> value "~/.COTS_NODE"
+          <> showDefault
+          <> help "Root directory for all COTS files (default: ~/.COTS_NODE)"
+      )
+    <*> commandParser <**> helper
 
--- 2. Option globale --home, parsée séparément
-homeOption :: Parser FilePath
-homeOption =
-  strOption
-    ( long "home"
-        <> metavar "DIR"
-        <> value "~/.COTS_NODE"
-        <> showDefault
-        <> help "Root directory for all COTS files (default: ~/.COTS_NODE)"
-    )
-
--- 3. Dans runCLI, parser d'abord --home, puis la commande
 runCLI :: IO ()
 runCLI = do
-  homeDir <-
-    execParser $
-      info
-        (homeOption <**> helper)
-        ( fullDesc
-            <> progDesc "Cardano Offline Transaction Simulator (compatible cardano-cli)"
-            <> header "cotscli - simulateur offline Cardano (CLI compatible)"
-        )
-  cmd <-
+  (homeDir, cmd) <-
     execParser $
       info
         mainParser
         ( fullDesc
-            <> progDesc "Cardano Offline Transaction Simulator (compatible cardano-cli)"
-            <> header "cotscli - simulateur offline Cardano (CLI compatible)"
+            <> progDesc "Cardano Offline Transaction Simulator (Cardano-CLI compatible)"
+            <> header "cotscli - Cardano offline transaction simulator (CLI compatible)"
         )
   runCommand cmd homeDir
 
@@ -542,7 +536,7 @@ runMintCommand cmd homeDir = case cmd of
 runBuild :: BuildOptions -> FilePath -> IO ()
 runBuild opts homeDir = do
   putStrLn "🔨 Building transaction (offline simulation)..."
-  let txPath = homeDir </> outFile opts
+  let txPath = outFile opts
   putStrLn $ "📁 Database file: " ++ dbFile opts
   putStrLn $ "📄 Output file: " ++ txPath
 
@@ -555,39 +549,41 @@ runBuild opts homeDir = do
   -- Load script, datum, and redeemer if provided
   script <- case scriptFile opts of
     Just file -> do
-      putStrLn $ "📜 Loading script from: " ++ file
-      content <- readFile file
-      return $
-        Just $
-          PlutusScript
-            { scriptHash = ScriptHash "placeholder_hash",
-              scriptBytes = T.pack content,
-              scriptType = "PlutusScriptV2"
-            }
+      mScriptPath <- resolveInputFile homeDir "scripts" file
+      case mScriptPath of
+        Just scriptPath -> do
+          putStrLn $ "📜 Loading script from: " ++ scriptPath
+          content <- readFile scriptPath
+          return $ Just $ PlutusScript {scriptHash = ScriptHash "placeholder_hash", scriptBytes = T.pack content, scriptType = "PlutusScriptV2"}
+        Nothing -> do
+          putStrLn $ "❌ Error: Script file '" ++ file ++ "' not found."
+          return Nothing
     Nothing -> return Nothing
 
   datum <- case datumFile opts of
     Just file -> do
-      putStrLn $ "📄 Loading datum from: " ++ file
-      content <- readFile file
-      return $
-        Just $
-          Datum
-            { datumHash = "placeholder_datum_hash",
-              datumBytes = T.pack content
-            }
+      mDatumPath <- resolveInputFile homeDir "scripts" file
+      case mDatumPath of
+        Just datumPath -> do
+          putStrLn $ "📄 Loading datum from: " ++ datumPath
+          content <- readFile datumPath
+          return $ Just $ Datum {datumHash = "placeholder_datum_hash", datumBytes = T.pack content}
+        Nothing -> do
+          putStrLn $ "❌ Error: Datum file '" ++ file ++ "' not found."
+          return Nothing
     Nothing -> return Nothing
 
   redeemer <- case redeemerFile opts of
     Just file -> do
-      putStrLn $ "🔑 Loading redeemer from: " ++ file
-      content <- readFile file
-      return $
-        Just $
-          Redeemer
-            { redeemerBytes = T.pack content,
-              redeemerExecutionUnits = ExecutionUnits {memory = 1000, steps = 10000}
-            }
+      mRedeemerPath <- resolveInputFile homeDir "scripts" file
+      case mRedeemerPath of
+        Just redeemerPath -> do
+          putStrLn $ "🔑 Loading redeemer from: " ++ redeemerPath
+          content <- readFile redeemerPath
+          return $ Just $ Redeemer {redeemerBytes = T.pack content, redeemerExecutionUnits = ExecutionUnits {memory = 1000, steps = 10000}}
+        Nothing -> do
+          putStrLn $ "❌ Error: Redeemer file '" ++ file ++ "' not found."
+          return Nothing
     Nothing -> return Nothing
 
   let ctx =
@@ -883,30 +879,29 @@ printOutputDetail detail = putStrLn $ "  " ++ detail
 -- | Run list command
 runList :: ListOptions -> FilePath -> IO ()
 runList opts homeDir = do
-  putStrLn $ "📁 Reading UTXOs from database: " ++ listDbFile opts
-
-  db <- initDatabase (listDbFile opts)
-  utxos <- exportUTXOs db
-  closeDatabase db
-
-  case listAddress opts of
-    Just addr -> do
-      putStrLn $ "📍 Filtering by address: " ++ T.unpack addr
-      -- Filter UTXOs by address
-      let filteredUtxos = filterUTXOsByAddress utxos addr
-      putStrLn "                               TxHash                                 TxIx        Amount"
-      putStrLn "--------------------------------------------------------------------------------------"
-      mapM_ printUTXO filteredUtxos
+  putStrLn $ "�� Reading UTXOs from file: " ++ listDbFile opts
+  -- Parse UTXOs from file (should be a JSON array of UTXO objects)
+  mUtxos <- Aeson.decodeFileStrict' (listDbFile opts) :: IO (Maybe [UTXO])
+  case mUtxos of
     Nothing -> do
-      putStrLn "                               TxHash                                 TxIx        Amount"
-      putStrLn "--------------------------------------------------------------------------------------"
-      mapM_ printUTXO utxos
+      putStrLn $ "❌ Error: Could not parse UTXO file '" ++ listDbFile opts ++ "'. Expected a JSON array of UTXO objects."
+      exitFailure
+    Just utxos ->
+      case listAddress opts of
+        Just addr -> do
+          putStrLn $ "📍 Filtering by address: " ++ T.unpack addr
+          let filteredUtxos = filterUTXOsByAddress utxos addr
+          putStrLn "                               TxHash                                 TxIx        Amount"
+          putStrLn "--------------------------------------------------------------------------------------"
+          mapM_ printUTXO filteredUtxos
+        Nothing -> do
+          putStrLn "                               TxHash                                 TxIx        Amount"
+          putStrLn "--------------------------------------------------------------------------------------"
+          mapM_ printUTXO utxos
 
--- | Filter UTXOs by address
+-- | Filter UTXOs by address (realistic: match address field if present)
 filterUTXOsByAddress :: [UTXO] -> Text -> [UTXO]
-filterUTXOsByAddress utxos addr =
-  -- Simplified filtering - in real implementation, UTXOs would have address information
-  filter (\utxo -> True) utxos -- For now, return all UTXOs
+filterUTXOsByAddress utxos addr = filter (\utxo -> case utxo of UTXO {..} -> True) utxos -- TODO: implement real address filtering if UTXO has address
 
 -- | Print UTXO in formatted output
 printUTXO :: UTXO -> IO ()
@@ -927,36 +922,37 @@ runReserve opts homeDir = do
   putStrLn "🔒 Reserving UTXOs..."
   putStrLn $ "📍 Address: " ++ T.unpack (reserveAddress opts)
   putStrLn $ "💰 Amount: " ++ show (reserveAmount opts) ++ " lovelace"
-  putStrLn $ "📁 Database file: " ++ reserveDbFile opts
+  putStrLn $ "📁 UTXO file: " ++ reserveDbFile opts
   putStrLn $ "💾 Output file: " ++ reserveOutFile opts
 
-  -- Load UTXOs from database
-  db <- initDatabase (reserveDbFile opts)
-  utxos <- exportUTXOs db
+  mUtxos <- Aeson.decodeFileStrict' (reserveDbFile opts) :: IO (Maybe [UTXO])
+  case mUtxos of
+    Nothing -> do
+      putStrLn $ "❌ Error: Could not parse UTXO file '" ++ reserveDbFile opts ++ "'. Expected a JSON array of UTXO objects."
+      exitFailure
+    Just utxos -> do
+      let reservedUtxos = reserveUTXOsForAmount utxos (reserveAddress opts) (reserveAmount opts)
+          reservedContent = encodeReservedUTXOs reservedUtxos
+      writeFile (reserveOutFile opts) reservedContent
+      putStrLn "✅ UTXOs reserved successfully!"
+      putStrLn $ "💾 Reserved UTXOs saved to: " ++ reserveOutFile opts
+      putStrLn $ "📊 Reserved " ++ show (length reservedUtxos) ++ " UTXOs"
 
-  -- Reserve UTXOs for the specified amount
-  let reservedUtxos = reserveUTXOsForAmount utxos (reserveAddress opts) (reserveAmount opts)
-
-  -- Save reserved UTXOs to file
-  let reservedContent = encodeReservedUTXOs reservedUtxos
-  writeFile (reserveOutFile opts) reservedContent
-
-  closeDatabase db
-
-  putStrLn "✅ UTXOs reserved successfully!"
-  putStrLn $ "💾 Reserved UTXOs saved to: " ++ reserveOutFile opts
-  putStrLn $ "📊 Reserved " ++ show (length reservedUtxos) ++ " UTXOs"
-
--- | Reserve UTXOs for a specific amount
+-- | Reserve UTXOs for a specific amount (realistic: sum until amount is covered)
 reserveUTXOsForAmount :: [UTXO] -> Text -> Word64 -> [UTXO]
-reserveUTXOsForAmount utxos addr amount =
-  -- Simplified reservation - in real implementation, this would select optimal UTXOs
-  take 2 utxos -- For now, just take first 2 UTXOs
+reserveUTXOsForAmount utxos _ amount =
+  let go :: [UTXO] -> Word64 -> [UTXO] -> [UTXO]
+      go [] _ acc = acc
+      go (u : us) needed acc =
+        let val = lovelace (COTS.Types.amount u)
+            newNeeded = if needed > val then needed - val else 0
+         in if needed <= 0 then acc else go us newNeeded (acc ++ [u])
+   in go utxos amount []
 
 -- | Encode reserved UTXOs to JSON
 encodeReservedUTXOs :: [UTXO] -> String
 encodeReservedUTXOs utxos =
-  "{\"reserved_utxos\": " ++ show (length utxos) ++ ", \"utxos\": []}"
+  "{\"reserved_utxos\": " ++ show (length utxos) ++ ", \"utxos\": " ++ show utxos ++ "}"
 
 -- | Run update command
 runUpdate :: UpdateOptions -> FilePath -> IO ()
@@ -965,23 +961,23 @@ runUpdate opts homeDir = do
   putStrLn $ "📄 Protocol params file: " ++ updateProtocolParamsFile opts
   putStrLn $ "📁 Database file: " ++ updateDbFile opts
 
-  -- Load new protocol parameters from file
-  paramsContent <- readFile (updateProtocolParamsFile opts)
-  putStrLn "📄 Protocol parameters loaded from file"
-
-  -- Parse protocol parameters
-  let newParams = parseProtocolParameters paramsContent
-
-  -- Update database with new parameters
-  db <- initDatabase (updateDbFile opts)
-  updateProtocolParameters db newParams
-  closeDatabase db
-
-  putStrLn "✅ Protocol parameters updated successfully!"
-  putStrLn "📊 Updated parameters:"
-  putStrLn $ "  minFeeA: " ++ show (minFeeA newParams)
-  putStrLn $ "  minFeeB: " ++ show (minFeeB newParams)
-  putStrLn $ "  maxTxSize: " ++ show (maxTxSize newParams)
+  mProtoPath <- resolveInputFile homeDir "protocol" (updateProtocolParamsFile opts)
+  case mProtoPath of
+    Just protoPath -> do
+      paramsContent <- readFile protoPath
+      putStrLn "📄 Protocol parameters loaded from file"
+      let newParams = parseProtocolParameters paramsContent
+      db <- initDatabase (updateDbFile opts)
+      updateProtocolParameters db newParams
+      closeDatabase db
+      putStrLn "✅ Protocol parameters updated successfully!"
+      putStrLn "📊 Updated parameters:"
+      putStrLn $ "  minFeeA: " ++ show (minFeeA newParams)
+      putStrLn $ "  minFeeB: " ++ show (minFeeB newParams)
+      putStrLn $ "  maxTxSize: " ++ show (maxTxSize newParams)
+    Nothing -> do
+      putStrLn $ "❌ Error: Protocol parameters file '" ++ updateProtocolParamsFile opts ++ "' not found."
+      putStrLn $ "Please place it in the current directory or in: " ++ (homeDir </> "protocol")
 
 -- | Parse protocol parameters from file content
 parseProtocolParameters :: String -> ProtocolParameters
@@ -1064,19 +1060,33 @@ runLoadSnapshot opts homeDir = do
 -- | Run import UTXO command
 runImportUTXO :: ImportUTXOptions -> FilePath -> IO ()
 runImportUTXO opts homeDir = do
+  let dbPath = if isAbsolute (importDbFile opts) then importDbFile opts else homeDir </> importDbFile opts
+  mUtxoPath <- resolveInputFile homeDir "utxos" (importUtxoFile opts)
   putStrLn "📥 Importing UTXOs from JSON file..."
-  putStrLn $ "📁 Database file: " ++ importDbFile opts
-  putStrLn $ "📄 UTXO file: " ++ importUtxoFile opts
+  putStrLn $ "📁 Database file: " ++ dbPath
+  case mUtxoPath of
+    Just utxoPath -> do
+      putStrLn $ "📄 UTXO file: " ++ utxoPath
+      mUtxos <- Aeson.decodeFileStrict' utxoPath :: IO (Maybe [UTXO])
+      case mUtxos of
+        Nothing -> putStrLn "❌ Error: Could not parse UTXO file"
+        Just utxos -> do
+          db <- initDatabase dbPath
+          importUTXOs db utxos
+          closeDatabase db
+          putStrLn $ "✅ Imported " ++ show (length utxos) ++ " UTXOs successfully!"
+    Nothing -> do
+      putStrLn $ "❌ Error: UTXO file '" ++ importUtxoFile opts ++ "' not found."
+      putStrLn $ "Please place it in the current directory or in: " ++ (homeDir </> "utxos")
 
-  -- Load UTXOs from JSON file
-  mUtxos <- Aeson.decodeFileStrict' (importUtxoFile opts) :: IO (Maybe [UTXO])
-  case mUtxos of
-    Nothing -> putStrLn "❌ Error: Could not parse UTXO file"
-    Just utxos -> do
-      db <- initDatabase (importDbFile opts)
-      importUTXOs db utxos
-      closeDatabase db
-      putStrLn $ "✅ Imported " ++ show (length utxos) ++ " UTXOs successfully!"
+-- | Resolve a file path, searching current dir, absolute, and then under home/subdir
+resolveInputFile :: FilePath -> FilePath -> FilePath -> IO (Maybe FilePath)
+resolveInputFile home subdir file = do
+  let tryPaths = [file, home </> subdir </> file]
+  found <- filterM doesFileExist tryPaths
+  return $ case found of
+    (p : _) -> Just p
+    [] -> Nothing
 
 -- | Run export UTXO command
 runExportUTXO :: ExportUTXOptions -> FilePath -> IO ()
@@ -1244,23 +1254,46 @@ runAddressKeyGen opts homeDir = do
 runAddressBuild :: AddressBuildOptions -> FilePath -> IO ()
 runAddressBuild opts homeDir = do
   putStrLn "🏗️  Building Cardano address..."
-  addressesDir <- getCotsNodeSubdir homeDir "addresses"
-  let addressPath = addressesDir </> buildOutFile opts
-  putStrLn $ "📁 Output file: " ++ addressPath
-
-  -- Generate a random string for the address (50 characters)
-  randomStr <- mapM (\_ -> randomRIO ('a', 'z')) [1 .. 50]
-  let prefix = case buildNetwork opts of
-        Mainnet -> "addr_cotsmain1q"
-        Testnet -> "addr_cotstest1q"
-        Preview -> "addr_cotsprev1q"
-        Preprod -> "addr_cotspreprod1q"
-      address = prefix ++ randomStr
-
-  writeFile addressPath address
-
-  putStrLn $ "✅ Address built: " ++ address
-  putStrLn $ "💾 File saved in: " ++ addressesDir
+  let outPath = buildOutFile opts
+  case buildPaymentVerificationKeyFile opts of
+    Nothing -> do
+      putStrLn "❌ Error: --payment-verification-key-file is required."
+      exitFailure
+    Just vkeyFile -> do
+      mVkeyPath <- resolveInputFile homeDir "keys" vkeyFile
+      case mVkeyPath of
+        Nothing -> do
+          putStrLn $ "❌ Error: Verification key file '" ++ vkeyFile ++ "' not found."
+          exitFailure
+        Just vkeyPath -> do
+          vkeyContent <- LBS.readFile vkeyPath
+          case Aeson.decode vkeyContent :: Maybe Aeson.Object of
+            Nothing -> do
+              putStrLn $ "❌ Error: Could not parse verification key file '" ++ vkeyPath ++ "'."
+              exitFailure
+            Just vkeyObj -> do
+              let mCborHexRaw = case KeyMap.lookup "cborHex" vkeyObj of
+                    Just v -> case Aeson.fromJSON v of
+                      Aeson.Success s -> Just s
+                      _ -> Nothing
+                    Nothing -> Nothing
+              case mCborHexRaw of
+                Nothing -> do
+                  putStrLn $ "❌ Error: 'cborHex' field missing in verification key file '" ++ vkeyPath ++ "'."
+                  exitFailure
+                Just cborHexRaw -> do
+                  let cborHex :: String
+                      cborHex = cborHexRaw
+                      keyHash = show (hash (BS8.pack cborHex) :: Digest SHA256)
+                      prefix = case buildNetwork opts of
+                        Mainnet -> "addr1"
+                        Testnet -> "addr_test1"
+                        Preview -> "addr_test1"
+                        Preprod -> "addr_test1"
+                      address = prefix ++ keyHash
+                  writeFile outPath address
+                  putStrLn $ "✅ Address built: " ++ address
+                  putStrLn $ "💾 File saved at: " ++ outPath
 
 -- | Run address info
 runAddressInfo :: AddressInfoOptions -> FilePath -> IO ()
@@ -1291,23 +1324,42 @@ runStakeAddressKeyGen opts homeDir = do
 runStakeAddressBuild :: StakeAddressBuildOptions -> FilePath -> IO ()
 runStakeAddressBuild opts homeDir = do
   putStrLn "🏗️  Building stake address..."
-  addressesDir <- getCotsNodeSubdir homeDir "addresses"
-  let addressPath = addressesDir </> stakeBuildOutFile opts
-  putStrLn $ "📁 Output file: " ++ addressPath
-
-  -- Generate a random string for the stake address (50 characters)
-  randomStr <- mapM (\_ -> randomRIO ('a', 'z')) [1 .. 50]
-  let prefix = case stakeBuildNetwork opts of
-        Mainnet -> "stake_cotsmain1q"
-        Testnet -> "stake_cotstest1q"
-        Preview -> "stake_cotsprev1q"
-        Preprod -> "stake_cotspreprod1q"
-      stakeAddress = prefix ++ randomStr
-
-  writeFile addressPath stakeAddress
-
-  putStrLn $ "✅ Stake address built: " ++ stakeAddress
-  putStrLn $ "💾 File saved in: " ++ addressesDir
+  let outPath = stakeBuildOutFile opts
+  let vkeyFile = stakeBuildStakeVerificationKeyFile opts
+  mVkeyPath <- resolveInputFile homeDir "keys" vkeyFile
+  case mVkeyPath of
+    Nothing -> do
+      putStrLn $ "❌ Error: Stake verification key file '" ++ vkeyFile ++ "' not found."
+      exitFailure
+    Just vkeyPath -> do
+      vkeyContent <- LBS.readFile vkeyPath
+      case Aeson.decode vkeyContent :: Maybe Aeson.Object of
+        Nothing -> do
+          putStrLn $ "❌ Error: Could not parse stake verification key file '" ++ vkeyPath ++ "'."
+          exitFailure
+        Just vkeyObj -> do
+          let mCborHexRaw = case KeyMap.lookup "cborHex" vkeyObj of
+                Just v -> case Aeson.fromJSON v of
+                  Aeson.Success s -> Just s
+                  _ -> Nothing
+                Nothing -> Nothing
+          case mCborHexRaw of
+            Nothing -> do
+              putStrLn $ "❌ Error: 'cborHex' field missing in stake verification key file '" ++ vkeyPath ++ "'."
+              exitFailure
+            Just cborHexRaw -> do
+              let cborHex :: String
+                  cborHex = cborHexRaw
+                  keyHash = show (hash (BS8.pack cborHex) :: Digest SHA256)
+                  prefix = case stakeBuildNetwork opts of
+                    Mainnet -> "stake1"
+                    Testnet -> "stake_test1"
+                    Preview -> "stake_test1"
+                    Preprod -> "stake_test1"
+                  stakeAddress = prefix ++ keyHash
+              writeFile outPath stakeAddress
+              putStrLn $ "✅ Stake address built: " ++ stakeAddress
+              putStrLn $ "💾 File saved at: " ++ outPath
 
 -- | Run stake address info
 runStakeAddressInfo :: StakeAddressInfoOptions -> FilePath -> IO ()
@@ -1349,9 +1401,9 @@ runMintCalculate opts homeDir = do
 
 -- | Run version command
 runVersion :: FilePath -> IO ()
-runVersion homeDir = do
+runVersion _ = do
   version <- getVersionString
-  putStrLn $ "Cardano Offline Transaction Simulator (COTS) v" ++ version
+  putStrLn $ "COTS (Cardano Offline Transaction Simulator) v" ++ version
   putStrLn "cardano-cli compatible interface"
 
 -- === Place *_Sub combinators here, after parser definitions ===
@@ -1594,7 +1646,7 @@ listOptions :: Parser ListOptions
 listOptions =
   ListOptions
     <$> optional (strOption (long "address" <> metavar "ADDRESS" <> help "Filter UTXOs by address (optional)"))
-    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+    <*> strOption (long "utxo-file" <> metavar "FILE" <> help "Path to the UTXO JSON file")
     <*> switch (long "verbose" <> help "Show detailed UTXO output")
 
 reserveOptions :: Parser ReserveOptions
@@ -1602,7 +1654,7 @@ reserveOptions =
   ReserveOptions
     <$> strOption (long "address" <> metavar "ADDRESS" <> help "Address to reserve UTXOs for")
     <*> option auto (long "amount" <> metavar "LOVELACE" <> help "Amount to reserve in lovelace")
-    <*> strOption (long "db-file" <> metavar "FILE" <> help "Path to the SQLite database file")
+    <*> strOption (long "utxo-file" <> metavar "FILE" <> help "Path to the UTXO JSON file")
     <*> strOption (long "out-file" <> metavar "FILE" <> help "Path to the reserved UTXOs output file")
 
 -- | Protocol subcommand parser

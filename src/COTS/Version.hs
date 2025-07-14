@@ -18,13 +18,9 @@ import System.Process (readProcessWithExitCode)
 defaultVersion :: Text
 defaultVersion = "0.1.0.0"
 
--- | Get the current version from git tags or return default
+-- | Get the current version (semantic version only)
 getVersion :: IO Text
-getVersion = do
-  gitVersion <- getGitVersion
-  case gitVersion of
-    Just version -> return version
-    Nothing -> return defaultVersion
+getVersion = return defaultVersion
 
 -- | Get version as a string
 getVersionString :: IO String
